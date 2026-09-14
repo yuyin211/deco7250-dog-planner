@@ -84,3 +84,25 @@ button:focus-visible { outline:2px solid #326f65; outline-offset:3px; }
   .prototype-shell { padding-bottom:8px; }
   .app-frame { height:calc(100dvh - 72px); min-height:620px; }
 }
+
+/* Dynamic recommendation and place-detail additions. */
+button.stop-card { border:0; color:var(--ink); text-align:left; cursor:pointer; }
+button.stop-card:hover { background:#f0f4f1; }
+.quiet-dot,.busy-dot { flex:0 0 5px; }
+.place-sheet { max-height:min(680px,calc(100vh - 35px)); overflow-y:auto; }
+.place-type { margin:0 0 4px; color:var(--muted); font-size:10px; }
+.prototype-rating { margin:11px 0 0; color:#60796f; font-size:10px; }
+.place-description { margin:10px 0; color:#5f6864; font-size:11px; line-height:1.45; }
+.dog-facts { display:flex; flex-wrap:wrap; gap:6px; }
+.dog-facts span { padding:6px 8px; border-radius:9px; background:#eef6f3; color:#47776d; font-size:9px; }
+.visit-duration { margin:12px 0; font-size:10px; color:#747d78; }
+.place-actions { display:grid; gap:7px; margin-top:14px; }
+.place-actions .primary-button { display:grid; place-items:center; min-height:42px; text-decoration:none; }
+.place-actions .secondary-button { min-height:40px; font-size:11px; }
+.text-button { min-height:34px; border:0; background:transparent; color:#717975; font-size:10px; cursor:pointer; }
+.place-alternatives { margin-top:14px; }
+.place-alternatives h3 { margin:0 0 8px; font-size:11px; }
+.alternative-place { width:100%; min-height:48px; display:flex; flex-direction:column; justify-content:center; gap:4px; padding:8px 11px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); text-align:left; cursor:pointer; }
+.alternative-place:hover { border-color:var(--teal); background:#f0f7f4; }
+.alternative-place strong { font-size:11px; }
+.alternative-place span { color:var(--muted); font-size:9px; }

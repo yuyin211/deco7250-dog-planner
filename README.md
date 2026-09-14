@@ -26,10 +26,20 @@ No API keys, GPS permissions, database, or routing service are needed.
 
 Start outing also works directly from Suggested outing.
 
+Planning choices now generate different curated itineraries. Activity coverage
+drives the recommendation, the selected time limits it to 2/3/4/5 stops, and
+Milo's preferences influence quiet/social café choice, water availability and
+route length. Destination cards open concise place details. Café details also
+offer the other curated café and update the itinerary, summary and map route
+without returning to planning.
+
 ## Editing the prototype
 
-- `static/data/routes.js`: Route A and B latitude/longitude arrays, four stops,
-  sample facilities, step indexes, crowd corridor, and trigger constant.
+- `static/data/places.js`: curated place copy and editable prototype scores.
+- `static/data/routes.js`: Route A, Plan B and recommendation-variant geometry,
+  sample facilities, step indexes, crowd corridor, and trigger configuration.
+- `static/js/recommendation.js`: scoring weights, time limits, itinerary
+  rendering, place details and café replacement.
 - `static/js/map.js`: Leaflet layers, numbered markers, attribution and viewport.
 - `static/js/navigation.js`: demo progression, decision sheet, route switching,
   expanded details, completion and restart.
