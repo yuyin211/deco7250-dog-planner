@@ -6,6 +6,7 @@ const PLACES = {
     name: 'Davies Park / West End Markets',
     type: 'Market and park',
     activities: ['Market', 'Park', 'Shopping'],
+    activityFit: {Market: 5, Park: 4, Shopping: 3},
     latitude: -27.4779401,
     longitude: 153.0052478,
     shortDescription: 'A market and park stop beside the Brisbane River.',
@@ -68,11 +69,12 @@ const PLACES = {
     id: 'orleigh_park',
     name: 'Orleigh Park',
     type: 'Park and rest stop',
-    activities: ['Park', 'Dog social time'],
+    activities: ['Park'],
+    activityFit: {Park: 5},
     latitude: -27.4898301,
     longitude: 153.0012397,
     shortDescription: 'A riverside park for a rest at the end of the outing.',
-    dogInfo: ['Open park space', 'Good space for a rest', 'Dogs may be nearby'],
+    dogInfo: ['Open park space', 'Good for dog social time', 'Often more social'],
     facilities: ['Sample bin point nearby'],
     prototypeRating: 4.7,
     quietScore: 3,
@@ -85,6 +87,9 @@ const PLACES = {
     name: 'Boundary Street precinct',
     type: 'Shopping precinct',
     activities: ['Shopping'],
+    // A dedicated shopping option prevents Shopping-only plans defaulting to
+    // the multi-purpose market solely because of generic dog scores.
+    activityFit: {Shopping: 5},
     latitude: -27.4815807,
     longitude: 153.0116593,
     shortDescription: 'A compact browsing stop in central West End.',
@@ -105,7 +110,6 @@ const ACTIVITY_DURATIONS = {
   'Café or food': {default: 30, minimum: 15, options: [15, 20, 30, 45, 60]},
   'Market': {default: 25, minimum: 15, options: [15, 20, 25, 30, 45, 60]},
   'Park': {default: 20, minimum: 10, options: [10, 15, 20, 30, 45]},
-  'Dog social time': {default: 20, minimum: 10, options: [10, 15, 20, 30, 45]},
   'Shopping': {default: 20, minimum: 10, options: [10, 15, 20, 30, 45, 60]},
   'Riverside walk': {default: 20, minimum: 10, options: [10, 15, 20, 30, 45]}
 };

@@ -32,8 +32,13 @@ place choices, dog suitability, unnecessary stops, and route length. Geography
 is constrained up front to the existing connected, curated routes. Quiet and
 social scores are averaged across relevant stops; water availability adds a
 sample suitability bonus; Shorter walks preferred penalises route kilometres.
-Preferences cannot outweigh missing activity coverage. One stop can cover
-multiple activities (for example, Orleigh covers Park and Dog social time).
+Preferences cannot outweigh missing activity coverage. The selectable activity
+set is Market, Riverside walk, Café or food, Park and Shopping. Dog social time
+is descriptive suitability metadata rather than a planning activity.
+
+Shopping-specific fit is ranked before generic dog suitability. Boundary Street
+is the dedicated Shopping option, while Davies Park / West End Markets can still
+cover Market, Park and Shopping in combined plans.
 
 Tap a stop for details, its duration for a focused picker, or the small Change
 action for alternatives. Change swaps only that role using an exact matching
@@ -42,8 +47,8 @@ the two park locations are interchangeable for Park-only outings when a
 matching route exists. An alternative must retain every selected activity
 covered by the original stop. Unsupported swaps are not offered.
 
-Suggested outing also supports lightweight manual refinement. The overflow menu
-removes a stop immediately unless it is the only coverage for an originally
+Suggested outing also supports lightweight manual refinement. A direct, light
+Remove button removes a stop immediately unless it is the only coverage for an originally
 selected activity; in that case, a confirmation names the lost activity. The
 informational coverage warning remains after confirmation. Add a stop first
 asks for one supported category, then shows only places that can be inserted
@@ -71,7 +76,6 @@ Defaults/minima in `ACTIVITY_DURATIONS` in `static/data/places.js` (minutes):
 | Café or food | 30 | 15 |
 | Market | 25 | 15 |
 | Park | 20 | 10 |
-| Dog social time | 20 | 10 |
 | Shopping | 20 | 10 |
 | Riverside walk | 20 | 10 |
 
@@ -104,8 +108,9 @@ clears prior add/remove edits. State lasts until page reload.
 The route geometry was extracted from connected OpenStreetMap highway ways
 on 15 September 2026. Every consecutive pair of coordinates is an OSM edge;
 the routes share the café departure point and rejoin at the riverside stop.
-Route A follows Kurilpa Street / the riverside, while Plan B uses an inland
-detour before reconnecting. No route calculation occurs at runtime.
+Route A follows Kurilpa Street / the riverside, while its Plan B uses an inland
+detour before reconnecting. Other Plan Bs are deterministic compositions of
+existing OSM-derived edges; no external route calculation occurs at runtime.
 
 Route A is approximately 2.6 km (43 minutes walking); Plan B is approximately
 3.0 km (49 minutes). The comparison is rounded to +400 m / +6 min.
@@ -128,22 +133,22 @@ Recommendation audit corrected the hard stop-count filter that excluded
 café + riverside, walking-only summaries, summed place-score bias, inaccurate
 small-route distance labels, and café replacement regenerating unrelated stops.
 The expanded navigation check also caught and fixed single-stop return legs
-trying to access a nonexistent next stop. Existing route coordinates, including
-Plan B, were compared to the pre-audit version and are unchanged. The two new
-café-to-riverside options are prefixes of existing routes, with no new edges.
+trying to access a nonexistent next stop. The established default route and
+Plan B remain unchanged. Café-to-riverside options and route-specific crowd
+alternatives reuse existing route edges, with no straight-line connections.
 
 Audit DOM checks with actual Leaflet passed:
 
 - Café + riverside / 45 min: both covered, 45 min total (18 travel + 27 activity).
 - Default market + riverside + café / 90 min: original four-stop route, 90 min.
-- Park + dog social / 60 min, social preference: Orleigh covers both, 28 min.
+- Park / 60 min, social preference: Orleigh is selected and described as social.
 - Café + shopping / 60 min: both roles covered, 60 min total.
 - Café swap: different geometry/travel, unchanged other stops and durations.
 - Café 30 → 45: exactly +15 total, unchanged geometry, visible overrun warning;
   edits survive details, map and unchanged Generate. Cancelling edits is safe.
 - All 15 nonempty dog-preference combinations retain café + river coverage.
 - Market + Park uses one destination. Park-only offers a valid park alternative.
-- All six activities / 45 min retain coverage with an explicit 38 min overrun.
+- All five selectable activities remain traceable through activity coverage.
 - Every curated route reaches completion. Default Switch and Keep both work,
   with one alert per outing and no DOM JavaScript errors.
 
@@ -161,6 +166,18 @@ Itinerary-edit DOM checks also passed:
 - Meaningful replanning clears add/remove state; details/map/back preserve it.
 - Every curated route, including both new café + shopping + park variants,
   reaches navigation completion. The original Switch and Keep branches pass.
+
+Latest review checks additionally confirmed:
+
+- Shopping-only selects Boundary Street rather than being forced to the market.
+- Café + Shopping and Add Shopping both use coherent curated combinations.
+- Dog social time is absent from planning, duration and Add category controls,
+  while Orleigh retains social supporting copy.
+- Change and Remove are direct card controls and do not trigger place details.
+- Water/bin indicators use 💧 and 🗑️ in the map legend and navigation.
+- All 20 static primary routes plus a derived manually edited route expose one
+  deterministic alert. Their Plan Bs exclude the configured busy edge; Switch
+  and Keep each reach completion without a second alert.
 
 The temporary DOM harness uses external cached tooling, not a new app dependency.
 It was removed after validation; no test framework or package manifest was added.

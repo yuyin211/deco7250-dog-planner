@@ -112,22 +112,21 @@ button.stop-card:hover { background:#f0f4f1; }
 .plan-time-message { font-size:11px; line-height:1.5; color:#896b37; background:#faf3e7; border-radius:9px; padding:9px 11px; margin:0 0 5px; }
 .increase-time { min-height:44px; color:var(--teal); padding:0; }
 .itinerary-card { min-width:0; position:relative; }
-.itinerary-card .place-context { padding-right:42px; padding-bottom:29px; }
-.itinerary-card .inline-change { position:absolute; left:10px; bottom:3px; }
-.stop-menu-button { position:absolute; right:7px; bottom:3px; width:44px; min-height:44px; color:var(--muted); font-size:19px; line-height:1; }
+.itinerary-card .place-context { padding-bottom:3px; }
+.stop-utilities { display:flex; justify-content:space-between; align-items:center; min-height:37px; }
+.inline-change,.inline-remove { min-width:54px; min-height:37px; padding:0; font-size:10px; }
+.inline-remove { color:var(--muted); }
 .stop-title-line { display:flex; align-items:center; gap:8px; }
 .itinerary-card button { border:0; background:transparent; font-family:inherit; cursor:pointer; }
 .place-name { flex:1; min-width:0; min-height:44px; padding:0; text-align:left; color:var(--ink); font-size:12px; font-weight:600; }
 .duration-button { flex-shrink:0; min-height:44px; padding:0 5px; color:var(--teal); font-size:11px; }
 .place-context { width:100%; min-height:44px; padding:0; text-align:left; color:var(--muted); font-size:10px; line-height:1.5; }
 .place-context .stop-meta { display:block; margin-top:3px; }
-.inline-change { min-height:44px; padding:0; color:var(--teal); font-size:11px; }
+.inline-change { color:var(--teal); }
 .itinerary-card button:focus-visible { outline:2px solid var(--teal); outline-offset:2px; border-radius:4px; }
 .add-stop-button { width:100%; min-height:44px; margin:7px 0 3px; border:1px dashed #bdd0ca; border-radius:10px; background:#f8faf8; color:var(--teal-dark); font-size:11px; cursor:pointer; }
 .compact-sheet { padding-bottom:28px; }
 .compact-sheet h2 { margin:0; font-size:17px; }
-.remove-stop-button { width:100%; min-height:48px; margin-top:14px; border:0; border-radius:10px; background:var(--soft-surface); color:#75594e; text-align:left; padding:0 13px; cursor:pointer; font-size:11px; }
-.remove-stop-button:disabled { color:#a7aaa7; cursor:not-allowed; }
 .warning-button { background:#8b6254; margin-top:4px; }
 .warning-button:hover { background:#704c41; }
 .sheet-cancel { width:100%; min-height:44px; margin-top:4px; }

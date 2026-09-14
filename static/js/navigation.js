@@ -87,8 +87,8 @@ function renderNavigation() {
   const lastPlace = PLACES[route.placeIds[route.placeIds.length - 1]];
   document.querySelector('#map-title').textContent = finished ? 'Outing complete' : PLACES[route.placeIds[nextStop]].name;
   const toStop = finished ? 0 : upcomingIndex < 0 ? remainingMeters : routeDistance(route.coordinates.slice(coordinateIndex, route.stopIndexes[nextStop] + 1));
-  document.querySelector('#map-context').textContent = finished ? `You’ve reached ${lastPlace.name}` : `${formatDistance(toStop)} · Follow the ${navigation.route === 'default_plan_b' ? 'quieter route' : 'highlighted route'}`;
-  document.querySelector('#route-badge').hidden = navigation.route !== 'default_plan_b';
+  document.querySelector('#map-context').textContent = finished ? `You’ve reached ${lastPlace.name}` : `${formatDistance(toStop)} · Follow the ${route.isPlanB ? 'quieter route' : 'highlighted route'}`;
+  document.querySelector('#route-badge').hidden = !route.isPlanB;
   document.querySelector('#remaining-time').textContent = `${remainingMinutes} min`;
   document.querySelector('#remaining-distance').textContent = formatDistance(remainingMeters);
   OUTING_FACILITIES.forEach(facility => {
@@ -100,7 +100,7 @@ function renderNavigation() {
     return `<li><span class="stop-number">${index + 1}</span><div><strong>${place.name}</strong><p>${place.type}</p></div></li>`;
   }).join('') || `<li>All ${route.placeIds.length} ${route.placeIds.length === 1 ? 'stop' : 'stops'} completed</li>`;
   const preference = state.selections.preferences.join(', ').toLowerCase();
-  document.querySelector('#dog-context').textContent = `Milo · ${preference}. ${navigation.route === 'default_plan_b' ? 'Quieter route selected.' : navigation.busy ? 'Busy corridor ahead.' : 'Route is currently quiet to moderate.'}`;
+  document.querySelector('#dog-context').textContent = `Milo · ${preference}. ${route.isPlanB ? 'Quieter route selected.' : navigation.busy ? 'Busy corridor ahead.' : 'Route is currently quiet to moderate.'}`;
   document.querySelector('#next-step').disabled = finished || navigation.alert;
   document.querySelector('#next-step').textContent = finished ? 'All stops reached' : 'Next demo step →';
   const comparisonRoute = navigation.alert && route.planB ? ROUTE_VARIANTS[route.planB] : null;
@@ -118,6 +118,9 @@ function advanceNavigation() {
     navigation.alert = true;
     mapScreen.classList.add('alert-open');
     crowdOverlay.hidden = false;
+    document.querySelector('#crowd-title-text').textContent = route.crowdAlertLabel || 'Busy area ahead';
+    document.querySelector('#alternative-time').textContent = route.alternativeMinutesText;
+    document.querySelector('#alternative-distance').textContent = route.alternativeDistanceText;
     document.querySelector('#crowd-dog-context').textContent = state.selections.preferences.includes('Prefers quieter areas') ? 'Milo prefers quieter areas.' : 'A quieter option is available for Milo.';
     navigationSheet.inert = true;
     document.querySelector('.map-heading').inert = true;
@@ -140,7 +143,19 @@ function decideRoute(switchRoute) {
   if (!navigation.alert) return;
   const current = activeRoute();
   navigation.decided = true;
-  if (switchRoute && current.planB) navigation.route = current.planB;
+  if (switchRoute && current.planB) {
+    const currentPoint = current.coordinates[current.navigationSteps[navigation.step]];
+    const alternative = ROUTE_VARIANTS[current.planB];
+    const nearestCoordinate = alternative.coordinates.reduce((best, point, index) =>
+      geoDistance(currentPoint, point) < best.distance
+        ? {index, distance: geoDistance(currentPoint, point)} : best,
+    {index: 0, distance: Infinity}).index;
+    navigation.route = current.planB;
+    navigation.step = alternative.navigationSteps.reduce((best, coordinateIndex, index) =>
+      Math.abs(coordinateIndex - nearestCoordinate) < best.distance
+        ? {index, distance: Math.abs(coordinateIndex - nearestCoordinate)} : best,
+    {index: 0, distance: Infinity}).index;
+  }
   closeCrowdAlert();
   document.querySelector('#route-confirmation').hidden = !switchRoute;
   renderNavigation();

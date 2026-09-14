@@ -347,8 +347,8 @@ const OUTING_ROUTES = {
 
 // Facility positions are simulated metadata, not live facility claims.
 const OUTING_FACILITIES = [
-  {kind: 'Water', symbol: 'W', position: OUTING_ROUTES.A.coordinates[90]},
-  {kind: 'Bin', symbol: 'B', position: OUTING_ROUTES.A.coordinates[130]}
+  {kind: 'Water', symbol: '💧', position: OUTING_ROUTES.A.coordinates[90]},
+  {kind: 'Bin', symbol: '🗑️', position: OUTING_ROUTES.A.coordinates[130]}
 ];
 // Curated recommendation variants. Literal geometry below was extracted from
 // connected OSM pedestrian ways; sliced variants reuse the known-good Route A.
@@ -1632,6 +1632,7 @@ const ROUTE_VARIANTS = {
   },
   default_plan_b: {
     id: 'default_plan_b', label: 'Quieter Plan B', hidden: true,
+    isPlanB: true,
     placeIds: ['davies_market', 'cafe_quiet', 'riverside_path', 'orleigh_park'],
     coordinates: OUTING_ROUTES.B.coordinates, stopIndexes: OUTING_ROUTES.B.stopIndexes,
     meters: OUTING_ROUTES.B.meters, estimatedMinutes: 49, distanceKm: 3.0,
@@ -1745,3 +1746,88 @@ Object.values(ROUTE_VARIANTS).forEach(route => {
       route.coordinates.slice(route.stopIndexes[river], route.stopIndexes[park] + 1)
     ) / 60)) : 0;
 });
+
+function formatRouteDifference(value, unit) {
+  const amount = Math.abs(value);
+  return `${amount} ${unit} ${value <= 0 ? 'shorter' : 'longer'}`;
+}
+
+const CURATED_NEIGHBOURS = new Map();
+function coordinateKey(point) { return `${point[0]},${point[1]}`; }
+function geographicEdgeKey(a, b) { return [coordinateKey(a), coordinateKey(b)].sort().join('|'); }
+for (const source of [...Object.values(OUTING_ROUTES), ...Object.values(CURATED_GEOMETRY)]) {
+  source.coordinates.forEach((point, index) => {
+    const neighbours = CURATED_NEIGHBOURS.get(coordinateKey(point)) || [];
+    if (index) neighbours.push(source.coordinates[index - 1]);
+    if (index < source.coordinates.length - 1) neighbours.push(source.coordinates[index + 1]);
+    CURATED_NEIGHBOURS.set(coordinateKey(point), neighbours);
+  });
+}
+
+// Every primary itinerary gets deterministic crowd adaptation. The original
+// default keeps its established inland Plan B. Other routes add a short side
+// section using an adjacent edge from the existing curated OSM network. The
+// direct route becomes Plan B and does not contain that simulated busy edge.
+function attachCrowdAlternative(route) {
+  if (route.hidden || route.planB || route.coordinates.length < 3) return route;
+  const planBId = `${route.id}_plan_b`;
+  const originalCoordinates = [...route.coordinates];
+  const originalStops = [...route.stopIndexes];
+  const originalNavigation = [...route.navigationSteps];
+  const routeEdges = new Set(originalCoordinates.slice(1).map((point, index) =>
+    geographicEdgeKey(originalCoordinates[index], point)
+  ));
+  let branch = null;
+  const searchIndexes = [
+    ...Array.from({length: originalCoordinates.length - 2}, (_, index) => index + 1),
+    0, originalCoordinates.length - 1
+  ];
+  for (const index of searchIndexes) {
+    const neighbour = (CURATED_NEIGHBOURS.get(coordinateKey(originalCoordinates[index])) || [])
+      .find(point => !routeEdges.has(geographicEdgeKey(originalCoordinates[index], point)));
+    if (neighbour) { branch = {index, neighbour}; break; }
+  }
+  if (!branch) return route;
+  const planB = {
+    ...route, id: planBId, label: `${route.label} · quieter option`, hidden: true,
+    isPlanB: true, planB: undefined, crowdTriggerStep: undefined,
+    busySegment: undefined, coordinates: originalCoordinates,
+    stopIndexes: originalStops,
+    navigationSteps: [...new Set([0, branch.index, ...originalNavigation])].sort((a, b) => a - b)
+  };
+  ROUTE_VARIANTS[planBId] = planB;
+  route.coordinates = [
+    ...originalCoordinates.slice(0, branch.index + 1),
+    branch.neighbour,
+    originalCoordinates[branch.index],
+    ...originalCoordinates.slice(branch.index + 1)
+  ];
+  route.stopIndexes = originalStops.map(index => index <= branch.index ? index : index + 2);
+  route.meters = Math.round(routeDistanceFromCoordinates(route.coordinates));
+  route.estimatedMinutes = Math.ceil(route.meters / 60);
+  route.travelMinutes = route.estimatedMinutes;
+  route.distanceKm = Math.round(route.meters / 100) / 10;
+  route.navigationSteps = null;
+  const alertCoordinate = branch.index ? branch.index : 1;
+  route.navigationSteps = [...new Set([0, alertCoordinate, ...buildNavigationSteps(route)])].sort((a, b) => a - b);
+  route.crowdTriggerStep = route.navigationSteps.indexOf(alertCoordinate);
+  route.busySegment = [branch.index, branch.index + 1];
+  route.planB = planBId;
+  route.crowdAlertLabel = `Busy section near ${PLACES[route.placeIds[0]].name}`;
+  route.alternativeMinutesText = formatRouteDifference(planB.travelMinutes - route.travelMinutes, 'min');
+  route.alternativeDistanceText = formatRouteDifference(
+    Math.round((planB.meters - route.meters) / 10) * 10, 'm'
+  );
+  return route;
+}
+
+[...Object.values(ROUTE_VARIANTS)].forEach(attachCrowdAlternative);
+
+// Route-specific comparison copy for the established default scenario.
+ROUTE_VARIANTS.default_quiet.crowdAlertLabel = 'Busy riverside section ahead';
+ROUTE_VARIANTS.default_quiet.alternativeMinutesText = formatRouteDifference(
+  ROUTE_VARIANTS.default_plan_b.travelMinutes - ROUTE_VARIANTS.default_quiet.travelMinutes, 'min'
+);
+ROUTE_VARIANTS.default_quiet.alternativeDistanceText = formatRouteDifference(
+  Math.round((ROUTE_VARIANTS.default_plan_b.meters - ROUTE_VARIANTS.default_quiet.meters) / 10) * 10, 'm'
+);

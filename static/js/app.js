@@ -21,7 +21,7 @@ const state = {
 };
 const editorData = {
   companions:{ title:'Going with', help:'Your saved dog for this outing', options:['Milo · Saved dog','Use different preferences for this outing'] },
-  activities:{ title:'Activities', help:'Choose one or more parts of the outing.', options:['Market','Riverside walk','Café or food','Park','Dog social time','Shopping'], multi:true },
+  activities:{ title:'Activities', help:'Choose one or more parts of the outing.', options:['Market','Riverside walk','Café or food','Park','Shopping'], multi:true },
   time:{ title:'Available time', help:'How long would you like to be out?', options:['45 min','60 min','90 min','2 hours'] },
   preferences:{ title:'Dog preferences', help:'Choose one or more preferences for Milo.', options:['Prefers quieter areas','Enjoys meeting other dogs','Needs regular water stops','Shorter walks preferred'], multi:true }
 };

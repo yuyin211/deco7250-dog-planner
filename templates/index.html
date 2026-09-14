@@ -42,7 +42,7 @@
             <button id="map-back" class="icon-button" aria-label="Back to suggested outing" type="button">‹</button>
             <div><span id="route-badge" hidden>QUIETER ROUTE</span><h1 id="map-title">Route map</h1><p id="map-context">West End, Brisbane</p></div>
           </header>
-          <div class="map-legend"><span><i class="quiet-line"></i>Quiet</span><span><i class="moderate-line"></i>Moderate</span><span><i class="busy-line"></i>Busy</span><span>W Water</span><span>B Bin</span></div>
+          <div class="map-legend"><span><i class="quiet-line"></i>Quiet</span><span><i class="moderate-line"></i>Moderate</span><span><i class="busy-line"></i>Busy</span><span>💧 Water</span><span>🗑️ Bin</span></div>
           <div class="map-area">
             <div id="outing-map" aria-label="West End route map"></div>
             <p id="map-unavailable" role="status" hidden>Map tiles unavailable. You can continue the demo.</p>
@@ -51,11 +51,11 @@
           <footer id="review-actions" class="map-review-actions"><p id="review-summary"></p><button id="review-start" class="primary-button" type="button">Start outing</button></footer>
           <section id="navigation-sheet" class="navigation-sheet" hidden aria-label="Navigation details">
             <div class="sheet-handle" aria-hidden="true"></div>
-            <div class="navigation-glance"><div><small>Walking left</small><strong id="remaining-time"></strong></div><span>W <span id="water-distance"></span></span><span>B <span id="bin-distance"></span></span><button id="expand-navigation" class="secondary-button" type="button" aria-expanded="false" aria-controls="navigation-details">⌃ More</button></div>
+            <div class="navigation-glance"><div><small>Walking left</small><strong id="remaining-time"></strong></div><span aria-label="Water nearby">💧 <span id="water-distance"></span></span><span aria-label="Bin nearby">🗑️ <span id="bin-distance"></span></span><button id="expand-navigation" class="secondary-button" type="button" aria-expanded="false" aria-controls="navigation-details">⌃ More</button></div>
             <div id="navigation-details" hidden>
               <p class="detail-distance">Distance remaining <strong id="remaining-distance"></strong></p>
               <h2>Upcoming stops</h2><ol id="upcoming-stops"></ol>
-              <h2>Nearby</h2><p class="facility-note">Water and bin markers show sample facilities.</p>
+              <h2>Nearby</h2><p class="facility-note">💧 Water and 🗑️ bin markers show sample facilities.</p>
               <p id="dog-context" class="dog-context"></p>
             </div>
             <p id="route-confirmation" class="route-confirmation" role="status" hidden>✓ Quieter route selected</p>
@@ -64,9 +64,9 @@
           </section>
           <div id="crowd-overlay" hidden>
             <section class="crowd-sheet" role="dialog" aria-modal="true" aria-labelledby="crowd-title">
-              <h2 id="crowd-title"><span aria-hidden="true">⚠</span> Busy area ahead</h2>
+              <h2 id="crowd-title"><span aria-hidden="true">⚠</span> <span id="crowd-title-text">Busy area ahead</span></h2>
               <p id="crowd-dog-context">Milo prefers quieter areas.</p>
-              <div class="alternative-card"><h3>Alternative route</h3><div class="summary-chips"><span>Quieter</span><span>+6 min</span><span>+400 m</span></div></div>
+              <div class="alternative-card"><h3>Alternative route</h3><div class="summary-chips"><span>Quieter</span><span id="alternative-time">+6 min</span><span id="alternative-distance">+400 m</span></div></div>
               <p class="comparison-hint">Dashed line shows the alternative route</p>
               <button id="switch-route" type="button" class="primary-button">Switch route</button>
               <button id="keep-route" type="button" class="secondary-button">Keep route</button>
@@ -87,13 +87,6 @@
         <p class="sheet-help">How long would you like to spend here?</p>
         <div class="editor-options" id="duration-options"></div>
         <button class="primary-button sheet-save" id="save-duration" type="button">Save duration</button>
-      </section>
-    </div>
-    <div class="modal-backdrop is-hidden" id="stop-menu-backdrop">
-      <section class="editor-sheet compact-sheet" role="dialog" aria-modal="true" aria-labelledby="stop-menu-title">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-header"><h2 id="stop-menu-title">Stop options</h2><button class="close-button" id="close-stop-menu" type="button" aria-label="Close stop options">×</button></div>
-        <button id="remove-stop" class="remove-stop-button" type="button">Remove stop</button>
       </section>
     </div>
     <div class="modal-backdrop is-hidden" id="remove-backdrop">

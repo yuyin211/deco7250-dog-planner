@@ -56,7 +56,7 @@ const outingMap = {
     if (!this.map) return;
     this.routeLayer.clearLayers();
     L.polyline(route.coordinates, {color: '#fff', weight: 8, opacity: 0.9}).addTo(this.routeLayer);
-    L.polyline(route.coordinates, {color: route.id === 'default_plan_b' ? '#397d70' : '#72ac8a', weight: 5}).addTo(this.routeLayer);
+    L.polyline(route.coordinates, {color: route.isPlanB ? '#397d70' : '#72ac8a', weight: 5}).addTo(this.routeLayer);
     if (route.busySegment) {
       const [start, end] = route.busySegment;
       L.polyline(route.coordinates.slice(start, end + 1), {color: busy ? '#dc705c' : '#d7ae62', weight: 5}).addTo(this.routeLayer);
