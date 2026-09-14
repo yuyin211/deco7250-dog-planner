@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>West End Dog Planner</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   </head>
   <body>
@@ -40,6 +41,42 @@
 
         <div class="bottom-actions" id="plan-actions"><button class="primary-button" id="generate-button" type="button">Generate outing</button></div>
         <div class="bottom-actions suggested-actions is-hidden" id="suggested-actions"><button class="primary-button" id="start-button" type="button">Start outing</button><div class="secondary-actions"><button class="secondary-button" id="map-button" type="button">View map</button><button class="secondary-button" id="adjust-button" type="button">Adjust plan</button></div></div>
+        <section id="map-screen" class="is-hidden" aria-label="Outing map">
+          <header class="map-heading">
+            <button id="map-back" class="icon-button" aria-label="Back to suggested outing" type="button">‹</button>
+            <div><span id="route-badge" hidden>QUIETER ROUTE</span><h1 id="map-title">Route map</h1><p id="map-context">West End, Brisbane</p></div>
+          </header>
+          <div class="map-legend"><span><i class="quiet-line"></i>Quiet</span><span><i class="moderate-line"></i>Moderate</span><span><i class="busy-line"></i>Busy</span><span>W Water</span><span>B Bin</span></div>
+          <div class="map-area">
+            <div id="outing-map" aria-label="West End route map"></div>
+            <p id="map-unavailable" role="status" hidden>Map tiles unavailable. You can continue the demo.</p>
+            <button id="recenter-map" type="button" class="recenter-button" aria-label="Recenter map">⌖</button>
+          </div>
+          <footer id="review-actions" class="map-review-actions"><p id="review-summary"></p><button id="review-start" class="primary-button" type="button">Start outing</button></footer>
+          <section id="navigation-sheet" class="navigation-sheet" hidden aria-label="Navigation details">
+            <div class="sheet-handle" aria-hidden="true"></div>
+            <div class="navigation-glance"><div><small>Remaining</small><strong id="remaining-time"></strong></div><span>W <span id="water-distance"></span></span><span>B <span id="bin-distance"></span></span><button id="expand-navigation" class="secondary-button" type="button" aria-expanded="false" aria-controls="navigation-details">⌃ More</button></div>
+            <div id="navigation-details" hidden>
+              <p class="detail-distance">Distance remaining <strong id="remaining-distance"></strong></p>
+              <h2>Upcoming stops</h2><ol id="upcoming-stops"></ol>
+              <h2>Nearby</h2><p class="facility-note">Water and bin markers show sample facilities.</p>
+              <p id="dog-context" class="dog-context"></p>
+            </div>
+            <p id="route-confirmation" class="route-confirmation" role="status" hidden>✓ Quieter route selected</p>
+            <div class="demo-actions"><button id="next-step" type="button">Next demo step →</button><button id="end-outing" type="button">End outing</button></div>
+            <p class="simulation-label">Simulated navigation · Crowd and facilities are sample data</p>
+          </section>
+          <div id="crowd-overlay" hidden>
+            <section class="crowd-sheet" role="dialog" aria-modal="true" aria-labelledby="crowd-title">
+              <h2 id="crowd-title"><span aria-hidden="true">⚠</span> Busy area ahead</h2>
+              <p id="crowd-dog-context">Milo prefers quieter areas.</p>
+              <div class="alternative-card"><h3>Alternative route</h3><div class="summary-chips"><span>Quieter</span><span>+6 min</span><span>+400 m</span></div></div>
+              <p class="comparison-hint">Dashed line shows the alternative route</p>
+              <button id="switch-route" type="button" class="primary-button">Switch route</button>
+              <button id="keep-route" type="button" class="secondary-button">Keep route</button>
+            </section>
+          </div>
+        </section>
         <div class="home-indicator" aria-hidden="true"></div>
       </section>
       <div class="screen-dots" aria-hidden="true"><span class="active"></span><span></span></div>
@@ -49,5 +86,9 @@
     <div class="modal-backdrop is-hidden" id="modal-backdrop"><section class="editor-sheet" role="dialog" aria-modal="true" aria-labelledby="editor-title"><div class="sheet-handle" aria-hidden="true"></div><div class="sheet-header"><h2 id="editor-title">Edit outing</h2><button class="close-button" id="close-editor" type="button" aria-label="Close editor">×</button></div><p class="sheet-help" id="editor-help">Choose an option</p><div class="editor-options" id="editor-options"></div><button class="primary-button sheet-save" id="save-editor" type="button">Save choice</button></section></div>
     <div class="toast is-hidden" id="toast" role="status"></div>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='data/routes.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/map.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/navigation.js') }}"></script>
   </body>
 </html>
