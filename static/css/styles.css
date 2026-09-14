@@ -106,3 +106,19 @@ button.stop-card:hover { background:#f0f4f1; }
 .alternative-place:hover { border-color:var(--teal); background:#f0f7f4; }
 .alternative-place strong { font-size:11px; }
 .alternative-place span { color:var(--muted); font-size:9px; }
+
+/* Small focused controls retain the existing itinerary's visual language. */
+.time-breakdown { font-size:10px; line-height:1.5; color:var(--muted); margin:0 0 10px; }
+.plan-time-message { font-size:11px; line-height:1.5; color:#896b37; background:#faf3e7; border-radius:9px; padding:9px 11px; margin:0 0 5px; }
+.increase-time { min-height:44px; color:var(--teal); padding:0; }
+.itinerary-card { min-width:0; position:relative; }
+.can-change .place-context { padding-right:60px; }
+.itinerary-card .inline-change { position:absolute; right:10px; bottom:9px; }
+.stop-title-line { display:flex; align-items:center; gap:8px; }
+.itinerary-card button { border:0; background:transparent; font-family:inherit; cursor:pointer; }
+.place-name { flex:1; min-width:0; min-height:44px; padding:0; text-align:left; color:var(--ink); font-size:12px; font-weight:600; }
+.duration-button { flex-shrink:0; min-height:44px; padding:0 5px; color:var(--teal); font-size:11px; }
+.place-context { width:100%; min-height:44px; padding:0; text-align:left; color:var(--muted); font-size:10px; line-height:1.5; }
+.place-context .stop-meta { display:block; margin-top:3px; }
+.inline-change { min-height:44px; padding:0; color:var(--teal); font-size:11px; }
+.itinerary-card button:focus-visible { outline:2px solid var(--teal); outline-offset:2px; border-radius:4px; }

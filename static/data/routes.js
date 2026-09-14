@@ -1682,6 +1682,34 @@ function buildNavigationSteps(route) {
   return [...new Set(points)].sort((a, b) => a - b);
 }
 
+// Two-stop café + riverside outings use existing connected path prefixes.
+// Ending at the riverside removes the optional park visit, not the walk activity.
+for (const [id, sourceId] of [
+  ['cafe_quiet_riverside', 'cafe_quiet_riverside_park'],
+  ['cafe_social_riverside', 'cafe_social_riverside_park']
+]) {
+  const source = ROUTE_VARIANTS[sourceId];
+  const coordinates = source.coordinates.slice(0, source.stopIndexes[1] + 1);
+  const meters = Math.round(routeDistanceFromCoordinates(coordinates));
+  ROUTE_VARIANTS[id] = {
+    id, label: 'Café and riverside', coordinates, meters,
+    distanceKm: Math.round(meters / 100) / 10,
+    estimatedMinutes: Math.ceil(meters / 60),
+    placeIds: source.placeIds.slice(0, 2), stopIndexes: source.stopIndexes.slice(0, 2)
+  };
+}
+
 Object.values(ROUTE_VARIANTS).forEach(route => {
   route.navigationSteps = buildNavigationSteps(route);
+  // One source for travel time/distance; the former hand-entered distance
+  // estimates were especially inaccurate for the small out-and-back routes.
+  route.travelMinutes = route.estimatedMinutes;
+  route.distanceKm = Math.round(route.meters / 100) / 10;
+  // Riverside → Orleigh is already walking activity, so credit that time once.
+  const river = route.placeIds.indexOf('riverside_path');
+  const park = route.placeIds.indexOf('orleigh_park');
+  route.riversideTravelMinutes = river >= 0 && park === river + 1
+    ? Math.min(route.travelMinutes, Math.round(routeDistanceFromCoordinates(
+      route.coordinates.slice(route.stopIndexes[river], route.stopIndexes[park] + 1)
+    ) / 60)) : 0;
 });

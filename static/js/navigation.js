@@ -80,12 +80,13 @@ function renderNavigation() {
   const coordinateIndex = route.navigationSteps[navigation.step];
   const point = route.coordinates[coordinateIndex];
   const remainingMeters = routeDistance(route.coordinates.slice(coordinateIndex));
-  const remainingMinutes = Math.ceil(remainingMeters / route.meters * route.estimatedMinutes);
-  const nextStop = route.stopIndexes.findIndex(stopIndex => stopIndex > coordinateIndex);
+  const remainingMinutes = Math.ceil(remainingMeters / routeDistance(route.coordinates) * route.travelMinutes);
+  const upcomingIndex = route.stopIndexes.findIndex(stopIndex => stopIndex > coordinateIndex);
+  const nextStop = upcomingIndex < 0 ? route.placeIds.length - 1 : upcomingIndex;
   const finished = coordinateIndex === route.coordinates.length - 1;
   const lastPlace = PLACES[route.placeIds[route.placeIds.length - 1]];
   document.querySelector('#map-title').textContent = finished ? 'Outing complete' : PLACES[route.placeIds[nextStop]].name;
-  const toStop = finished ? 0 : routeDistance(route.coordinates.slice(coordinateIndex, route.stopIndexes[nextStop] + 1));
+  const toStop = finished ? 0 : upcomingIndex < 0 ? remainingMeters : routeDistance(route.coordinates.slice(coordinateIndex, route.stopIndexes[nextStop] + 1));
   document.querySelector('#map-context').textContent = finished ? `You’ve reached ${lastPlace.name}` : `${formatDistance(toStop)} · Follow the ${navigation.route === 'default_plan_b' ? 'quieter route' : 'highlighted route'}`;
   document.querySelector('#route-badge').hidden = navigation.route !== 'default_plan_b';
   document.querySelector('#remaining-time').textContent = `${remainingMinutes} min`;

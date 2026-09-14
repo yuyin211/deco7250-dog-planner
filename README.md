@@ -26,20 +26,60 @@ No API keys, GPS permissions, database, or routing service are needed.
 
 Start outing also works directly from Suggested outing.
 
-Planning choices now generate different curated itineraries. Activity coverage
-drives the recommendation, the selected time limits it to 2/3/4/5 stops, and
-Milo's preferences influence quiet/social café choice, water availability and
-route length. Destination cards open concise place details. Café details also
-offer the other curated café and update the itinerary, summary and map route
-without returning to planning.
+Planning choices generate different curated itineraries. Selected activity
+coverage comes first, followed by total-time feasibility, retained manual
+place choices, dog suitability, unnecessary stops, and route length. Geography
+is constrained up front to the existing connected, curated routes. Quiet and
+social scores are averaged across relevant stops; water availability adds a
+sample suitability bonus; Shorter walks preferred penalises route kilometres.
+Preferences cannot outweigh missing activity coverage. One stop can cover
+multiple activities (for example, Orleigh covers Park and Dog social time).
+
+Tap a stop for details, its duration for a focused picker, or the small Change
+action for alternatives. Change swaps only that role using an exact matching
+route, preserving other stops, order and durations. Cafés are interchangeable;
+the two park locations are interchangeable for Park-only outings when a
+matching route exists. An alternative must retain every selected activity
+covered by the original stop. Unsupported swaps are not offered.
+
+## Timing model
+
+Total = travelMinutes + activityMinutes. Travel uses the curated route's
+walking estimate. Activity time sums planned visits, crediting the existing
+riverside-to-Orleigh walking segment against the riverside activity once.
+For routes ending at the riverside, its activity duration is additional leisure
+time, not a second copy of the journey to reach it. The UI shows the breakdown
+and any credited time. Navigation's Walking left excludes visits.
+
+Defaults/minima in `ACTIVITY_DURATIONS` in `static/data/places.js` (minutes):
+
+| Activity | Default | Minimum |
+| --- | ---: | ---: |
+| Café or food | 30 | 15 |
+| Market | 25 | 15 |
+| Park | 20 | 10 |
+| Dog social time | 20 | 10 |
+| Shopping | 20 | 10 |
+| Riverside walk | 20 | 10 |
+
+A stop covering several roles uses the longest applicable duration, not their
+sum. Flexible visits shrink toward minima to fit. If still over budget, the
+best-covered itinerary remains visible with an explicit overrun and Increase
+available time action; any unsupported activity is also named. This is not
+precise routing or scheduling software.
+
+Manual duration edits are allowed over budget and update totals without moving
+the route. Viewing details/map and generating an unchanged plan preserve edits.
+Meaningfully changing activities, time or preferences re-ranks candidates;
+still-applicable duration edits are retained. State lasts until page reload.
 
 ## Editing the prototype
 
 - `static/data/places.js`: curated place copy and editable prototype scores.
 - `static/data/routes.js`: Route A, Plan B and recommendation-variant geometry,
   sample facilities, step indexes, crowd corridor, and trigger configuration.
-- `static/js/recommendation.js`: scoring weights, time limits, itinerary
-  rendering, place details and café replacement.
+- `static/js/recommendation.js`: coverage, ranking, timing, duration picker,
+  itinerary rendering, place details and same-role replacement.
 - `static/js/map.js`: Leaflet layers, numbered markers, attribution and viewport.
 - `static/js/navigation.js`: demo progression, decision sheet, route switching,
   expanded details, completion and restart.
@@ -68,6 +108,32 @@ under [ODbL](https://www.openstreetmap.org/copyright). Leaflet/OpenStreetMap
 attribution remains visible on the map.
 
 ## Validation and limits
+
+Recommendation audit corrected the hard stop-count filter that excluded
+café + riverside, walking-only summaries, summed place-score bias, inaccurate
+small-route distance labels, and café replacement regenerating unrelated stops.
+The expanded navigation check also caught and fixed single-stop return legs
+trying to access a nonexistent next stop. Existing route coordinates, including
+Plan B, were compared to the pre-audit version and are unchanged. The two new
+café-to-riverside options are prefixes of existing routes, with no new edges.
+
+Audit DOM checks with actual Leaflet passed:
+
+- Café + riverside / 45 min: both covered, 45 min total (18 travel + 27 activity).
+- Default market + riverside + café / 90 min: original four-stop route, 90 min.
+- Park + dog social / 60 min, social preference: Orleigh covers both, 28 min.
+- Café + shopping / 60 min: both roles covered, 60 min total.
+- Café swap: different geometry/travel, unchanged other stops and durations.
+- Café 30 → 45: exactly +15 total, unchanged geometry, visible overrun warning;
+  edits survive details, map and unchanged Generate. Cancelling edits is safe.
+- All 15 nonempty dog-preference combinations retain café + river coverage.
+- Market + Park uses one destination. Park-only offers a valid park alternative.
+- All six activities / 45 min retain coverage with an explicit 38 min overrun.
+- Every curated route reaches completion. Default Switch and Keep both work,
+  with one alert per outing and no DOM JavaScript errors.
+
+The temporary DOM harness uses external cached tooling, not a new app dependency.
+It was removed after validation; no test framework or package manifest was added.
 
 Both Switch and Keep flows were exercised in a DOM integration check using
 the actual Leaflet script, including markers, attribution, completion,

@@ -27,6 +27,9 @@
         <div id="suggested-screen" class="screen is-hidden">
           <header class="screen-header"><p class="eyebrow">West End, Brisbane</p><h1>Suggested outing</h1></header>
           <div class="summary-chips" aria-label="Outing summary"><span>49 min</span><span>3.0 km</span><span>4 stops</span></div>
+          <p id="time-breakdown" class="time-breakdown"></p>
+          <p id="plan-time-message" class="plan-time-message" role="status" hidden></p>
+          <button id="increase-time" class="text-button increase-time" type="button" hidden>Increase available time →</button>
           <div class="itinerary" id="itinerary" aria-label="Suggested itinerary"></div>
           <div class="weather-card suggested-weather"><span class="weather-icon" aria-hidden="true">🌤️</span><span>27°C · Good conditions for 90 min</span></div>
         </div>
@@ -47,7 +50,7 @@
           <footer id="review-actions" class="map-review-actions"><p id="review-summary"></p><button id="review-start" class="primary-button" type="button">Start outing</button></footer>
           <section id="navigation-sheet" class="navigation-sheet" hidden aria-label="Navigation details">
             <div class="sheet-handle" aria-hidden="true"></div>
-            <div class="navigation-glance"><div><small>Remaining</small><strong id="remaining-time"></strong></div><span>W <span id="water-distance"></span></span><span>B <span id="bin-distance"></span></span><button id="expand-navigation" class="secondary-button" type="button" aria-expanded="false" aria-controls="navigation-details">⌃ More</button></div>
+            <div class="navigation-glance"><div><small>Walking left</small><strong id="remaining-time"></strong></div><span>W <span id="water-distance"></span></span><span>B <span id="bin-distance"></span></span><button id="expand-navigation" class="secondary-button" type="button" aria-expanded="false" aria-controls="navigation-details">⌃ More</button></div>
             <div id="navigation-details" hidden>
               <p class="detail-distance">Distance remaining <strong id="remaining-distance"></strong></p>
               <h2>Upcoming stops</h2><ol id="upcoming-stops"></ol>
@@ -76,6 +79,15 @@
     </main>
 
     <div class="modal-backdrop is-hidden" id="modal-backdrop"><section class="editor-sheet" role="dialog" aria-modal="true" aria-labelledby="editor-title"><div class="sheet-handle" aria-hidden="true"></div><div class="sheet-header"><h2 id="editor-title">Edit outing</h2><button class="close-button" id="close-editor" type="button" aria-label="Close editor">×</button></div><p class="sheet-help" id="editor-help">Choose an option</p><div class="editor-options" id="editor-options"></div><button class="primary-button sheet-save" id="save-editor" type="button">Save choice</button></section></div>
+    <div class="modal-backdrop is-hidden" id="duration-backdrop">
+      <section class="editor-sheet place-sheet" role="dialog" aria-modal="true" aria-labelledby="duration-title">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="sheet-header"><h2 id="duration-title"></h2><button class="close-button" id="close-duration" type="button" aria-label="Close duration picker">×</button></div>
+        <p class="sheet-help">How long would you like to spend here?</p>
+        <div class="editor-options" id="duration-options"></div>
+        <button class="primary-button sheet-save" id="save-duration" type="button">Save duration</button>
+      </section>
+    </div>
     <div class="modal-backdrop is-hidden" id="place-backdrop">
       <section class="editor-sheet place-sheet" role="dialog" aria-modal="true" aria-labelledby="place-title">
         <div class="sheet-handle" aria-hidden="true"></div>
@@ -83,7 +95,8 @@
         <p class="prototype-rating" id="place-rating"></p>
         <p class="place-description" id="place-description"></p>
         <div class="dog-facts" id="dog-facts"></div>
-        <p class="visit-duration" id="visit-duration"></p>
+          <p class="visit-duration" id="visit-duration"></p>
+          <p class="sheet-help">Dog suitability and facilities are prototype estimates.</p>
         <div id="place-alternatives" class="place-alternatives" hidden><h3>Choose an alternative</h3><div id="alternative-list"></div></div>
         <div class="place-actions"><a id="google-maps-link" class="primary-button" target="_blank" rel="noopener noreferrer">View on Google Maps</a><button id="change-place" class="secondary-button" type="button">Change place</button><button id="dismiss-place" class="text-button" type="button">Close</button></div>
       </section>

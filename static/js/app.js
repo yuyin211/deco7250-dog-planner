@@ -9,7 +9,11 @@ const state = {
   },
   recommendedStops: [],
   selectedRouteVariant: 'default_quiet',
-  manualPlaceOverrides: {cafe: null}
+  manualPlaceOverrides: {},
+  stopDurations: {},
+  manualDurations: {},
+  stopRoles: {},
+  planSignature: null
 };
 const editorData = {
   companions:{ title:'Going with', help:'Your saved dog for this outing', options:['Milo · Saved dog','Use different preferences for this outing'] },

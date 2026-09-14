@@ -12,7 +12,6 @@ const PLACES = {
     dogInfo: ['Shared outdoor area', 'Open space nearby'],
     facilities: ['Open space'],
     prototypeRating: 4.6,
-    suggestedDuration: 20,
     quietScore: 3,
     dogSocialScore: 4,
     waterAvailable: false,
@@ -29,7 +28,6 @@ const PLACES = {
     dogInfo: ['Outdoor seating', 'Usually quieter', 'Water available'],
     facilities: ['Outdoor seating', 'Sample water point'],
     prototypeRating: 4.6,
-    suggestedDuration: 12,
     quietScore: 5,
     dogSocialScore: 2,
     waterAvailable: true,
@@ -46,7 +44,6 @@ const PLACES = {
     dogInfo: ['Outdoor seating', 'More social atmosphere'],
     facilities: ['Outdoor seating'],
     prototypeRating: 4.5,
-    suggestedDuration: 12,
     quietScore: 2,
     dogSocialScore: 5,
     waterAvailable: false,
@@ -62,7 +59,6 @@ const PLACES = {
     shortDescription: 'A riverside walking section through West End.',
     dogInfo: ['Open-air path', 'Good space for a steady walk'],
     facilities: ['Sample water point nearby'],
-    suggestedDuration: 12,
     quietScore: 4,
     dogSocialScore: 2,
     waterAvailable: true,
@@ -79,7 +75,6 @@ const PLACES = {
     dogInfo: ['Open park space', 'Good space for a rest', 'Dogs may be nearby'],
     facilities: ['Sample bin point nearby'],
     prototypeRating: 4.7,
-    suggestedDuration: 15,
     quietScore: 3,
     dogSocialScore: 5,
     waterAvailable: false,
@@ -95,7 +90,6 @@ const PLACES = {
     shortDescription: 'A compact browsing stop in central West End.',
     dogInfo: ['Street-front activity', 'Can feel lively at busy times'],
     facilities: [],
-    suggestedDuration: 15,
     quietScore: 2,
     dogSocialScore: 3,
     waterAvailable: false,
@@ -104,3 +98,14 @@ const PLACES = {
 };
 
 const PLACE_LIST = Object.values(PLACES);
+
+// Planning estimates, not venue requirements. A combined stop uses the longest
+// relevant activity duration, rather than adding Market + Park + Shopping.
+const ACTIVITY_DURATIONS = {
+  'Café or food': {default: 30, minimum: 15, options: [15, 20, 30, 45, 60]},
+  'Market': {default: 25, minimum: 15, options: [15, 20, 25, 30, 45, 60]},
+  'Park': {default: 20, minimum: 10, options: [10, 15, 20, 30, 45]},
+  'Dog social time': {default: 20, minimum: 10, options: [10, 15, 20, 30, 45]},
+  'Shopping': {default: 20, minimum: 10, options: [10, 15, 20, 30, 45, 60]},
+  'Riverside walk': {default: 20, minimum: 10, options: [10, 15, 20, 30, 45]}
+};
