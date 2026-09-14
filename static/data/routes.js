@@ -1597,6 +1597,30 @@ const socialCafeShortRoute = outAndBack(CURATED_GEOMETRY.cafe_social_shopping.co
 const riversideShortRoute = outAndBack(OUTING_ROUTES.A.coordinates.slice(119, 127));
 const boundaryShortRoute = outAndBack([...CURATED_GEOMETRY.cafe_social_shopping.coordinates].reverse());
 
+function selectedStopsVariant(source, placeIds) {
+  const positions = placeIds.map(id => source.placeIds.indexOf(id));
+  const first = source.stopIndexes[positions[0]];
+  const last = source.stopIndexes[positions[positions.length - 1]];
+  const coordinates = source.coordinates.slice(first, last + 1);
+  return {
+    coordinates,
+    stopIndexes: positions.map(position => source.stopIndexes[position] - first),
+    placeIds,
+    meters: Math.round(routeDistanceFromCoordinates(coordinates))
+  };
+}
+
+// Exact café + shopping + park combinations reuse the complete, OSM-aligned
+// shopping routes. Riverside is passed through but is not treated as a stop.
+const quietShoppingParkRoute = selectedStopsVariant(
+  CURATED_GEOMETRY.full_quiet_shopping,
+  ['cafe_quiet', 'boundary_precinct', 'orleigh_park']
+);
+const socialShoppingParkRoute = selectedStopsVariant(
+  CURATED_GEOMETRY.full_social_shopping,
+  ['cafe_social', 'boundary_precinct', 'orleigh_park']
+);
+
 const ROUTE_VARIANTS = {
   default_quiet: {
     id: 'default_quiet', label: 'Market, quiet café and riverside',
@@ -1664,6 +1688,14 @@ const ROUTE_VARIANTS = {
   cafe_social_shopping: {
     ...CURATED_GEOMETRY.cafe_social_shopping, id: 'cafe_social_shopping', label: 'Lively café and Boundary Street',
     estimatedMinutes: 5, distanceKm: 0.1
+  },
+  cafe_quiet_shopping_park: {
+    ...quietShoppingParkRoute, id: 'cafe_quiet_shopping_park', label: 'Quiet café, shopping and park',
+    estimatedMinutes: Math.ceil(quietShoppingParkRoute.meters / 60), planningRequires: ['Park']
+  },
+  cafe_social_shopping_park: {
+    ...socialShoppingParkRoute, id: 'cafe_social_shopping_park', label: 'Lively café, shopping and park',
+    estimatedMinutes: Math.ceil(socialShoppingParkRoute.meters / 60), planningRequires: ['Park']
   },
   full_quiet_shopping: {
     ...CURATED_GEOMETRY.full_quiet_shopping, id: 'full_quiet_shopping', label: 'Full West End outing via quiet café',

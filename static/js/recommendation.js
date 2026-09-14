@@ -116,11 +116,19 @@ function generateRecommendation() {
     renderSuggestedOuting();
     return;
   }
-  const candidates = Object.values(ROUTE_VARIANTS).filter(route => !route.hidden)
+  if (state.planSignature !== null) {
+    state.manualPlaceOverrides = {};
+    state.manualDurations = {};
+    state.manuallyAddedStops = [];
+    state.manuallyRemovedStopIds = [];
+  }
+  const candidates = Object.values(ROUTE_VARIANTS).filter(route => !route.hidden && !route.manualEdit &&
+    (!route.planningRequires || route.planningRequires.every(activity => state.selections.activities.includes(activity))))
     .map(candidateItinerary).sort(compareCandidates);
   const chosen = candidates[0];
   state.selectedRouteVariant = chosen.route.id;
   state.recommendedStops = [...chosen.route.placeIds];
+  state.systemRecommendedStops = [...chosen.route.placeIds];
   state.stopRoles = chosen.roles;
   state.stopDurations = chosen.durations;
   state.planSignature = signature;
@@ -174,7 +182,8 @@ function renderSuggestedOuting() {
   document.querySelector('#increase-time').hidden = timing.totalMinutes <= availableMinutes();
   document.querySelector('#itinerary').innerHTML = route.placeIds.map((id, index) => {
     const place = PLACES[id];
-    const roles = place.activities.filter(activity => state.selections.activities.includes(activity));
+    const selectedRoles = place.activities.filter(activity => state.selections.activities.includes(activity));
+    const roles = selectedRoles.length ? selectedRoles : [state.stopRoles[id]];
     const canChange = alternativesFor(place).length > 0;
     // Separate buttons avoid nested interactive controls: duration and Change
     // never bubble into the place-details action.
@@ -184,6 +193,7 @@ function renderSuggestedOuting() {
         <button class="duration-button" type="button" data-duration="${id}" aria-label="Change duration for ${place.name}">${state.stopDurations[id]} min <span aria-hidden="true">⌄</span></button></div>
         <button class="place-context" type="button" data-detail="${id}">${roles.join(' · ') || place.type}<span class="stop-meta">${placeComparison(place)}</span></button>
         ${canChange ? `<button class="inline-change" type="button" data-change="${id}">↻ Change</button>` : ''}
+        <button class="stop-menu-button" type="button" data-stop-menu="${id}" aria-label="More options for ${place.name}">⋯</button>
       </div></article>`;
     if (index === route.placeIds.length - 1) return card;
     const meters = legDistance(route, index);
@@ -198,6 +208,184 @@ function replacementRoute(currentId, replacementId) {
   const desired = current.placeIds.map(id => id === currentId ? replacementId : id);
   return Object.values(ROUTE_VARIANTS).find(route => !route.hidden &&
     route.placeIds.length === desired.length && route.placeIds.every((id, index) => id === desired[index]));
+}
+
+function exactRouteForStops(placeIds) {
+  return Object.values(ROUTE_VARIANTS).filter(route => !route.hidden && !route.manualEdit &&
+    route.placeIds.length === placeIds.length && route.placeIds.every((id, index) => id === placeIds[index]))
+    .sort((a, b) => a.travelMinutes - b.travelMinutes)[0];
+}
+
+function editedSubsetRoute(placeIds) {
+  const exact = exactRouteForStops(placeIds);
+  if (exact) return exact;
+  const source = ROUTE_VARIANTS[state.selectedRouteVariant];
+  const positions = placeIds.map(id => source.placeIds.indexOf(id));
+  if (positions.some(position => position < 0) || positions.some((position, index) => index && position <= positions[index - 1])) return null;
+  const first = source.stopIndexes[positions[0]];
+  const last = source.stopIndexes[positions[positions.length - 1]];
+  const coordinates = source.coordinates.slice(first, last + 1);
+  const id = `manual_${source.id}_${placeIds.join('_')}`;
+  const route = {
+    id, label: 'Manually edited outing', manualEdit: true, placeIds, coordinates,
+    stopIndexes: positions.map(position => source.stopIndexes[position] - first),
+    meters: Math.round(geometryDistance(coordinates))
+  };
+  route.estimatedMinutes = Math.ceil(route.meters / 60);
+  route.travelMinutes = route.estimatedMinutes;
+  route.distanceKm = Math.round(route.meters / 100) / 10;
+  route.navigationSteps = buildNavigationSteps(route);
+  const river = route.placeIds.indexOf('riverside_path');
+  const park = route.placeIds.indexOf('orleigh_park');
+  route.riversideTravelMinutes = river >= 0 && park === river + 1
+    ? Math.min(route.travelMinutes, Math.round(geometryDistance(
+      route.coordinates.slice(route.stopIndexes[river], route.stopIndexes[park] + 1)
+    ) / 60)) : 0;
+  ROUTE_VARIANTS[id] = route;
+  return route;
+}
+
+function setEditedRoute(route) {
+  state.selectedRouteVariant = route.id;
+  state.recommendedStops = [...route.placeIds];
+  renderSuggestedOuting();
+}
+
+let menuPlaceId = null;
+
+function openStopMenu(id) {
+  menuPlaceId = id;
+  document.querySelector('#stop-menu-title').textContent = PLACES[id].name;
+  document.querySelector('#remove-stop').disabled = state.recommendedStops.length === 1;
+  document.querySelector('#stop-menu-backdrop').classList.remove('is-hidden');
+  document.querySelector('#remove-stop').focus();
+}
+
+function closeStopMenu() {
+  document.querySelector('#stop-menu-backdrop').classList.add('is-hidden');
+  document.querySelector(`[data-stop-menu="${menuPlaceId}"]`)?.focus();
+}
+
+function removeCoverageLoss(id) {
+  const remaining = state.recommendedStops.filter(placeId => placeId !== id);
+  return activityCoverage({placeIds: remaining}).uncoveredActivities;
+}
+
+function requestRemoveStop() {
+  if (state.recommendedStops.length === 1) return;
+  const lost = removeCoverageLoss(menuPlaceId);
+  closeStopMenu();
+  if (!lost.length) return removeStop(menuPlaceId);
+  document.querySelector('#remove-title').textContent = `Remove ${PLACES[menuPlaceId].name}?`;
+  document.querySelector('#remove-message').textContent = `Your outing will no longer include: ${lost.join(', ')}.`;
+  document.querySelector('#remove-backdrop').classList.remove('is-hidden');
+  document.querySelector('#confirm-remove').focus();
+}
+
+function removeStop(id) {
+  const remaining = state.recommendedStops.filter(placeId => placeId !== id);
+  const route = editedSubsetRoute(remaining);
+  if (!route) return showToast('This stop cannot be removed from the curated route.');
+  const wasManuallyAdded = state.manuallyAddedStops.includes(id);
+  if (!wasManuallyAdded && !state.manuallyRemovedStopIds.includes(id)) state.manuallyRemovedStopIds.push(id);
+  state.manuallyAddedStops = state.manuallyAddedStops.filter(placeId => placeId !== id);
+  delete state.stopDurations[id];
+  delete state.stopRoles[id];
+  delete state.manualDurations[id];
+  Object.keys(state.manualPlaceOverrides).forEach(role => {
+    if (state.manualPlaceOverrides[role] === id) delete state.manualPlaceOverrides[role];
+  });
+  document.querySelector('#remove-backdrop').classList.add('is-hidden');
+  setEditedRoute(route);
+  showToast(`${PLACES[id].name} removed.`);
+}
+
+function additionRoute(candidateId) {
+  const current = state.recommendedStops;
+  return Object.values(ROUTE_VARIANTS).filter(route => !route.hidden && !route.manualEdit &&
+    route.placeIds.length === current.length + 1 && route.placeIds.includes(candidateId) &&
+    route.placeIds.filter(id => id !== candidateId).every((id, index) => id === current[index]))
+    .sort((a, b) => a.travelMinutes - b.travelMinutes)[0];
+}
+
+function placePreferenceScore(place) {
+  let score = 0;
+  if (state.selections.preferences.includes('Prefers quieter areas')) score += place.quietScore * DOG_WEIGHTS.quiet;
+  if (state.selections.preferences.includes('Enjoys meeting other dogs')) score += place.dogSocialScore * DOG_WEIGHTS.social;
+  if (state.selections.preferences.includes('Needs regular water stops') && place.waterAvailable) score += DOG_WEIGHTS.water;
+  return score;
+}
+
+function additionCandidates(category) {
+  const currentRoute = ROUTE_VARIANTS[state.selectedRouteVariant];
+  const currentTotal = itineraryTiming(currentRoute).totalMinutes;
+  return PLACE_LIST.filter(place => !state.recommendedStops.includes(place.id) && place.activities.includes(category))
+    .map(place => {
+      const route = additionRoute(place.id);
+      if (!route) return null;
+      const durations = {...state.stopDurations, [place.id]: ACTIVITY_DURATIONS[category].default};
+      const total = itineraryTiming(route, durations).totalMinutes;
+      return {
+        place, route, duration: ACTIVITY_DURATIONS[category].default,
+        addedMinutes: Math.max(0, total - currentTotal),
+        overMinutes: Math.max(0, total - availableMinutes()),
+        preferenceScore: placePreferenceScore(place),
+        distanceImpact: Math.max(0, route.meters - currentRoute.meters)
+      };
+    }).filter(Boolean).sort((a, b) =>
+      Boolean(a.overMinutes) - Boolean(b.overMinutes) ||
+      a.addedMinutes - b.addedMinutes ||
+      b.preferenceScore - a.preferenceScore ||
+      a.distanceImpact - b.distanceImpact
+    );
+}
+
+let addCategory = null;
+let addOpener = null;
+
+function supportedAddCategories() {
+  return Object.keys(ACTIVITY_DURATIONS).filter(category => additionCandidates(category).length);
+}
+
+function openAddStop() {
+  addOpener = document.activeElement;
+  addCategory = null;
+  document.querySelector('#add-stop-step').textContent = 'Add a stop';
+  document.querySelector('#add-stop-title').textContent = 'What would you like to add?';
+  document.querySelector('#add-stop-back').hidden = true;
+  document.querySelector('#add-stop-options').innerHTML = supportedAddCategories().map(category =>
+    `<button class="editor-option" type="button" data-add-category="${category}"><span>${category}</span><span aria-hidden="true">›</span></button>`
+  ).join('') || '<p class="sheet-help">No more stops are supported by this curated route.</p>';
+  document.querySelector('#add-stop-backdrop').classList.remove('is-hidden');
+  document.querySelector('#add-stop-options button')?.focus();
+}
+
+function showAddCandidates(category) {
+  addCategory = category;
+  document.querySelector('#add-stop-step').textContent = category;
+  document.querySelector('#add-stop-title').textContent = 'Recommended places';
+  document.querySelector('#add-stop-back').hidden = false;
+  document.querySelector('#add-stop-options').innerHTML = additionCandidates(category).map(({place, duration, addedMinutes}) =>
+    `<button class="add-candidate" type="button" data-add-place="${place.id}"><strong>${place.name}</strong><span>${placeComparison(place)}</span><small>${duration} min stay · +${addedMinutes} min to outing</small></button>`
+  ).join('');
+  document.querySelector('#add-stop-options button')?.focus();
+}
+
+function closeAddStop() {
+  document.querySelector('#add-stop-backdrop').classList.add('is-hidden');
+  if (addOpener?.isConnected) addOpener.focus();
+}
+
+function addPlace(id) {
+  const candidate = additionCandidates(addCategory).find(item => item.place.id === id);
+  if (!candidate) return;
+  state.stopRoles[id] = addCategory;
+  state.stopDurations[id] = candidate.duration;
+  if (!state.manuallyAddedStops.includes(id)) state.manuallyAddedStops.push(id);
+  state.manuallyRemovedStopIds = state.manuallyRemovedStopIds.filter(placeId => placeId !== id);
+  setEditedRoute(candidate.route);
+  closeAddStop();
+  showToast(`${PLACES[id].name} added.`);
 }
 
 function alternativesFor(place) {
@@ -262,6 +450,7 @@ function changePlace(replacementId) {
   delete state.stopRoles[currentId];
   delete state.manualDurations[currentId];
   state.manualPlaceOverrides[role] = replacementId;
+  state.manuallyAddedStops = state.manuallyAddedStops.map(id => id === currentId ? replacementId : id);
   state.selectedRouteVariant = route.id;
   state.recommendedStops = [...route.placeIds];
   // Replacement is a direct role swap, never a new recommendation run.
@@ -295,9 +484,11 @@ function closeDuration() {
 document.querySelector('#itinerary').addEventListener('click', event => {
   const duration = event.target.closest('[data-duration]');
   const change = event.target.closest('[data-change]');
+  const menu = event.target.closest('[data-stop-menu]');
   const detail = event.target.closest('[data-detail]');
   if (duration) openDuration(duration.dataset.duration);
   else if (change) openPlaceDetails(change.dataset.change, true);
+  else if (menu) openStopMenu(menu.dataset.stopMenu);
   else if (detail) openPlaceDetails(detail.dataset.detail);
   else if (event.target.closest('[data-card]')) openPlaceDetails(event.target.closest('[data-card]').dataset.card);
 });
@@ -331,14 +522,53 @@ document.querySelector('#alternative-list').addEventListener('click', event => {
   const alternative = event.target.closest('.alternative-place');
   if (alternative) changePlace(alternative.dataset.placeId);
 });
+document.querySelector('#add-stop').onclick = openAddStop;
+document.querySelector('#close-add-stop').onclick = closeAddStop;
+document.querySelector('#add-stop-back').onclick = openAddStop;
+document.querySelector('#add-stop-options').addEventListener('click', event => {
+  const category = event.target.closest('[data-add-category]');
+  const place = event.target.closest('[data-add-place]');
+  if (category) showAddCandidates(category.dataset.addCategory);
+  else if (place) addPlace(place.dataset.addPlace);
+});
+document.querySelector('#add-stop-backdrop').addEventListener('click', event => {
+  if (event.target.id === 'add-stop-backdrop') closeAddStop();
+});
+document.querySelector('#close-stop-menu').onclick = closeStopMenu;
+document.querySelector('#remove-stop').onclick = requestRemoveStop;
+document.querySelector('#stop-menu-backdrop').addEventListener('click', event => {
+  if (event.target.id === 'stop-menu-backdrop') closeStopMenu();
+});
+document.querySelector('#confirm-remove').onclick = () => removeStop(menuPlaceId);
+document.querySelector('#cancel-remove').onclick = () => {
+  document.querySelector('#remove-backdrop').classList.add('is-hidden');
+  document.querySelector(`[data-stop-menu="${menuPlaceId}"]`)?.focus();
+};
+document.querySelector('#remove-backdrop').addEventListener('click', event => {
+  if (event.target.id === 'remove-backdrop') document.querySelector('#cancel-remove').click();
+});
 document.querySelector('#increase-time').onclick = () => {
-  // Open the existing time picker; no forced regeneration or lost manual edits.
-  showScreen('plan');
-  openEditor('time');
+  const options = [45, 60, 90, 120];
+  const total = itineraryTiming(ROUTE_VARIANTS[state.selectedRouteVariant]).totalMinutes;
+  const current = availableMinutes();
+  const next = options.find(minutes => minutes > current && minutes >= total) || options.find(minutes => minutes > current);
+  if (!next) return;
+  state.selections.time = next === 120 ? '2 hours' : `${next} min`;
+  document.querySelector('#time-value').textContent = state.selections.time;
+  state.planSignature = JSON.stringify({
+    activities: [...state.selections.activities].sort(), time: state.selections.time,
+    preferences: [...state.selections.preferences].sort()
+  });
+  renderSuggestedOuting();
+  showToast(`Available time increased to ${state.selections.time}.`);
 };
 
 // Keep keyboard focus in either new sheet. Escape cancels a duration draft.
-for (const [id, close] of [['duration-backdrop', closeDuration], ['place-backdrop', closePlaceDetails]]) {
+for (const [id, close] of [
+  ['duration-backdrop', closeDuration], ['place-backdrop', closePlaceDetails],
+  ['stop-menu-backdrop', closeStopMenu], ['add-stop-backdrop', closeAddStop],
+  ['remove-backdrop', () => document.querySelector('#cancel-remove').click()]
+]) {
   document.getElementById(id).addEventListener('keydown', event => {
     if (event.key === 'Escape') close();
     if (event.key !== 'Tab') return;

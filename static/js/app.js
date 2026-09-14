@@ -12,6 +12,10 @@ const state = {
   manualPlaceOverrides: {},
   stopDurations: {},
   manualDurations: {},
+  // Manual itinerary edits apply to the current generated plan only.
+  systemRecommendedStops: [],
+  manuallyAddedStops: [],
+  manuallyRemovedStopIds: [],
   stopRoles: {},
   planSignature: null
 };

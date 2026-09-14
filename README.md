@@ -42,6 +42,19 @@ the two park locations are interchangeable for Park-only outings when a
 matching route exists. An alternative must retain every selected activity
 covered by the original stop. Unsupported swaps are not offered.
 
+Suggested outing also supports lightweight manual refinement. The overflow menu
+removes a stop immediately unless it is the only coverage for an originally
+selected activity; in that case, a confirmation names the lost activity. The
+informational coverage warning remains after confirmation. Add a stop first
+asks for one supported category, then shows only places that can be inserted
+into the current itinerary using an exact curated route. Candidate cards show
+dog-relevant context, default stay time and approximate added outing time.
+
+Add candidates rank by time fit and added time, then dog preference suitability
+and route-length impact. Geographic coherence is a prerequisite: unsupported
+place/order combinations are never offered. Route ordering determines the
+insertion point rather than blindly appending the new stop.
+
 ## Timing model
 
 Total = travelMinutes + activityMinutes. Travel uses the curated route's
@@ -70,8 +83,10 @@ precise routing or scheduling software.
 
 Manual duration edits are allowed over budget and update totals without moving
 the route. Viewing details/map and generating an unchanged plan preserve edits.
-Meaningfully changing activities, time or preferences re-ranks candidates;
-still-applicable duration edits are retained. State lasts until page reload.
+`systemRecommendedStops`, `manuallyAddedStops`, `manuallyRemovedStopIds`,
+`manualPlaceOverrides`, and `manualDurations` keep the edit types explicit.
+Meaningfully changing activities, time or preferences creates a fresh plan and
+clears prior add/remove edits. State lasts until page reload.
 
 ## Editing the prototype
 
@@ -131,6 +146,21 @@ Audit DOM checks with actual Leaflet passed:
 - All six activities / 45 min retain coverage with an explicit 38 min overrun.
 - Every curated route reaches completion. Default Switch and Keep both work,
   with one alert per outing and no DOM JavaScript errors.
+
+Itinerary-edit DOM checks also passed:
+
+- Removing the default café names lost Café coverage, then selects the existing
+  three-stop Market → Riverside → Orleigh route in the itinerary, map and nav.
+- Removing a redundant stop is immediate, without unnecessary confirmation.
+- Adding a café to Riverside → Orleigh inserts it first; both café candidates
+  are available, and Change preserves the added state and all other stops.
+- Adding Orleigh to café + shopping uses exact OSM-aligned route geometry and
+  displays an over-time warning. Increase time selects the next fitting option.
+- A newly added café starts at 30 minutes; changing it to 45 adds exactly 15
+  minutes without changing geometry.
+- Meaningful replanning clears add/remove state; details/map/back preserve it.
+- Every curated route, including both new café + shopping + park variants,
+  reaches navigation completion. The original Switch and Keep branches pass.
 
 The temporary DOM harness uses external cached tooling, not a new app dependency.
 It was removed after validation; no test framework or package manifest was added.
