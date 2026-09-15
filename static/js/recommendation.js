@@ -1,6 +1,14 @@
 // Compare complete curated itineraries. Coverage is a separate ranking tier:
 // dog scores can never compensate for a missing selected activity.
-const DOG_WEIGHTS = {quiet: 3, social: 3, water: 16, shorterKm: 18};
+const DOG_WEIGHTS = {quiet: 3, fewerDogs: 2, crowd: 4};
+function canonicalActivity(activity) { return activity === 'Rest or picnic' ? 'Park' : activity; }
+function wantsWater() { return state.selections.preferences.includes('Needs easier access to water'); }
+function routeMeetsRequiredFacilities(route) {
+  const kinds=new Set(route.requiredFacilities || []);
+  if(wantsWater()) kinds.add('Water');
+  if(route.binRequired) kinds.add('Bin');
+  return [...kinds].every(kind=>facilityPairEligible(route,kind));
+}
 
 function geometryDistance(coordinates) {
   return routeDistanceFromCoordinates(coordinates);
@@ -11,20 +19,20 @@ function recommendationDistance(meters) {
 }
 
 function availableMinutes() {
-  return state.selections.time === '2 hours' ? 120 : Number.parseInt(state.selections.time, 10);
+  return Number(state.selections.time);
 }
 
 function activityCoverage(route, activities = state.selections.activities) {
   const supported = new Set(route.placeIds.flatMap(id => PLACES[id].activities));
   return {
-    coveredActivities: activities.filter(activity => supported.has(activity)),
-    uncoveredActivities: activities.filter(activity => !supported.has(activity))
+    coveredActivities: activities.filter(activity => supported.has(canonicalActivity(activity))),
+    uncoveredActivities: activities.filter(activity => !supported.has(canonicalActivity(activity)))
   };
 }
 
 function stopRole(placeId) {
   const place = PLACES[placeId];
-  const matches = place.activities.filter(activity => state.selections.activities.includes(activity));
+  const matches = place.activities.filter(activity => state.selections.activities.some(a => canonicalActivity(a) === activity));
   // One place can cover multiple roles simultaneously. Use the longest visit.
   return (matches.length ? matches : [place.activities[0]])
     .sort((a, b) => ACTIVITY_DURATIONS[b].default - ACTIVITY_DURATIONS[a].default)[0];
@@ -64,18 +72,17 @@ function candidateItinerary(route) {
     durations[flexible[0]] -= 1;
   }
   const coverage = activityCoverage(route);
-  const relevant = route.placeIds.filter(id => PLACES[id].activities.some(a => state.selections.activities.includes(a)));
+  const relevant = route.placeIds.filter(id => PLACES[id].activities.some(a => state.selections.activities.some(choice => canonicalActivity(choice) === a)));
   // Average suitability: extra stops do not manufacture extra preference points.
   let dogScore = relevant.reduce((score, id) => {
     const place = PLACES[id];
     if (state.selections.preferences.includes('Prefers quieter areas')) score += place.quietScore * DOG_WEIGHTS.quiet;
-    if (state.selections.preferences.includes('Enjoys meeting other dogs')) score += place.dogSocialScore * DOG_WEIGHTS.social;
-    if (state.selections.preferences.includes('Needs regular water stops') && place.waterAvailable) score += DOG_WEIGHTS.water;
+    if (state.selections.preferences.includes('Prefers fewer dogs')) score += (5 - place.dogSocialScore) * DOG_WEIGHTS.fewerDogs;
+    if (state.selections.preferences.includes('Avoids crowded areas')) score += place.quietScore * DOG_WEIGHTS.crowd;
     return score;
   }, 0) / Math.max(1, relevant.length);
-  if (state.selections.preferences.includes('Shorter walks preferred')) dogScore -= route.distanceKm * DOG_WEIGHTS.shorterKm;
   const activityFit = state.selections.activities.reduce((score, activity) => {
-    const best = route.placeIds.reduce((value, id) => Math.max(value, PLACES[id].activityFit?.[activity] || 0), 0);
+    const best = route.placeIds.reduce((value, id) => Math.max(value, PLACES[id].activityFit?.[canonicalActivity(activity)] || 0), 0);
     return score + best;
   }, 0);
   // Count stops beyond the smallest subset of THIS route needed for coverage.
@@ -103,9 +110,9 @@ function compareCandidates(a, b) {
   // All geometry has already been curated, so there is no straight-line routing.
   return b.coveredActivities.length - a.coveredActivities.length ||
     a.overMinutes - b.overMinutes ||
-    b.overridesKept - a.overridesKept ||
     b.activityFit - a.activityFit ||
     b.dogScore - a.dogScore ||
+    b.overridesKept - a.overridesKept ||
     a.redundantStops - b.redundantStops ||
     a.route.placeIds.length - b.route.placeIds.length ||
     a.route.meters - b.route.meters;
@@ -128,9 +135,14 @@ function generateRecommendation() {
     state.manuallyRemovedStopIds = [];
   }
   const candidates = Object.values(ROUTE_VARIANTS).filter(route => !route.hidden && !route.manualEdit &&
-    (!route.planningRequires || route.planningRequires.every(activity => state.selections.activities.includes(activity))))
+    (!route.planningRequires || route.planningRequires.every(activity => state.selections.activities.some(a => canonicalActivity(a) === activity))) &&
+    routeMeetsRequiredFacilities(route))
     .map(candidateItinerary).sort(compareCandidates);
   const chosen = candidates[0];
+  if (!chosen) {
+    showToast('No curated route with water access fits these choices. Adjust your plan.');
+    return false;
+  }
   state.selectedRouteVariant = chosen.route.id;
   state.recommendedStops = [...chosen.route.placeIds];
   state.systemRecommendedStops = [...chosen.route.placeIds];
@@ -139,7 +151,7 @@ function generateRecommendation() {
   state.planSignature = signature;
   // Remove only overrides no longer applicable to the newly selected outing.
   for (const [role, id] of Object.entries(state.manualPlaceOverrides)) {
-    if (!chosen.route.placeIds.includes(id) || !state.selections.activities.includes(role)) {
+    if (!chosen.route.placeIds.includes(id) || !state.selections.activities.some(a => canonicalActivity(a) === role)) {
       delete state.manualPlaceOverrides[role];
     }
   }
@@ -154,7 +166,7 @@ function legDistance(route, index) {
 }
 
 function routeSummary(route) {
-  return [`${itineraryTiming(route).totalMinutes} min total`, `${route.distanceKm.toFixed(1)} km`,
+  return [`${formatDuration(itineraryTiming(route).totalMinutes)} total`, `${route.distanceKm.toFixed(1)} km`,
     `${route.placeIds.length} ${route.placeIds.length === 1 ? 'stop' : 'stops'}`];
 }
 
@@ -165,7 +177,7 @@ function timeMessage(route) {
   if (uncoveredActivities.length) messages.push(`Not included: ${uncoveredActivities.join(', ')}.`);
   const over = timing.totalMinutes - availableMinutes();
   if (over > 0) {
-    messages.push(`${over} min over your planned time. ${state.selections.time} is a little tight for this outing.`);
+    messages.push(`${over} min over your planned time. ${formatDuration(state.selections.time)} is a little tight for this outing.`);
   } else if (route.placeIds.some(id => !state.manualDurations[id] &&
     state.stopDurations[id] < ACTIVITY_DURATIONS[state.stopRoles[id]].default)) {
     messages.push('Shorter visits to fit your time.');
@@ -187,9 +199,10 @@ function renderSuggestedOuting() {
   document.querySelector('#increase-time').hidden = timing.totalMinutes <= availableMinutes();
   document.querySelector('#itinerary').innerHTML = route.placeIds.map((id, index) => {
     const place = PLACES[id];
-    const selectedRoles = place.activities.filter(activity => state.selections.activities.includes(activity));
-    const roles = selectedRoles.length ? selectedRoles : [state.stopRoles[id]];
-    const canChange = alternativesFor(place).length > 0;
+    const selectedRoles = place.activities.filter(activity => state.selections.activities.some(a => canonicalActivity(a) === activity));
+    const roles = (selectedRoles.length ? selectedRoles : [state.stopRoles[id]])
+      .map(role => role === 'Park' ? 'Rest or picnic' : role);
+    const canChange = changeCandidates(place).length > 0;
     // Separate buttons avoid nested interactive controls: duration and Change
     // never bubble into the place-details action.
     const card = `<article class="stop-row"><div class="stop-number">${index + 1}</div>
@@ -219,7 +232,8 @@ function replacementRoute(currentId, replacementId) {
 
 function exactRouteForStops(placeIds) {
   return Object.values(ROUTE_VARIANTS).filter(route => !route.hidden && !route.manualEdit &&
-    route.placeIds.length === placeIds.length && route.placeIds.every((id, index) => id === placeIds[index]))
+    route.placeIds.length === placeIds.length && route.placeIds.every((id, index) => id === placeIds[index]) &&
+    routeMeetsRequiredFacilities(route))
     .sort((a, b) => a.travelMinutes - b.travelMinutes)[0];
 }
 
@@ -235,6 +249,7 @@ function editedSubsetRoute(placeIds) {
   const id = `manual_${source.id}_${placeIds.join('_')}`;
   const route = {
     id, label: 'Manually edited outing', manualEdit: true, placeIds, coordinates,
+    requiredFacilities: source.requiredFacilities, binRequired: source.binRequired,
     stopIndexes: positions.map(position => source.stopIndexes[position] - first),
     meters: Math.round(geometryDistance(coordinates))
   };
@@ -281,6 +296,10 @@ function removeStop(id) {
   const remaining = state.recommendedStops.filter(placeId => placeId !== id);
   const route = editedSubsetRoute(remaining);
   if (!route) return showToast('This stop cannot be removed from the curated route.');
+  if (!routeMeetsRequiredFacilities(route)) {
+    document.querySelector('#remove-backdrop').classList.add('is-hidden');
+    return showToast('This change would remove required water access.');
+  }
   const wasManuallyAdded = state.manuallyAddedStops.includes(id);
   if (!wasManuallyAdded && !state.manuallyRemovedStopIds.includes(id)) state.manuallyRemovedStopIds.push(id);
   state.manuallyAddedStops = state.manuallyAddedStops.filter(placeId => placeId !== id);
@@ -299,15 +318,16 @@ function additionRoute(candidateId) {
   const current = state.recommendedStops;
   return Object.values(ROUTE_VARIANTS).filter(route => !route.hidden && !route.manualEdit &&
     route.placeIds.length === current.length + 1 && route.placeIds.includes(candidateId) &&
-    route.placeIds.filter(id => id !== candidateId).every((id, index) => id === current[index]))
+    route.placeIds.filter(id => id !== candidateId).every((id, index) => id === current[index]) &&
+    routeMeetsRequiredFacilities(route))
     .sort((a, b) => a.travelMinutes - b.travelMinutes)[0];
 }
 
 function placePreferenceScore(place) {
   let score = 0;
   if (state.selections.preferences.includes('Prefers quieter areas')) score += place.quietScore * DOG_WEIGHTS.quiet;
-  if (state.selections.preferences.includes('Enjoys meeting other dogs')) score += place.dogSocialScore * DOG_WEIGHTS.social;
-  if (state.selections.preferences.includes('Needs regular water stops') && place.waterAvailable) score += DOG_WEIGHTS.water;
+  if (state.selections.preferences.includes('Prefers fewer dogs')) score += (5 - place.dogSocialScore) * DOG_WEIGHTS.fewerDogs;
+  if (state.selections.preferences.includes('Avoids crowded areas')) score += place.quietScore * DOG_WEIGHTS.crowd;
   return score;
 }
 
@@ -386,11 +406,92 @@ function addPlace(id) {
 function alternativesFor(place) {
   // An alternative must preserve every selected activity assigned to this stop,
   // its current role, the other stops AND their order on a supported route.
-  const required = place.activities.filter(activity => state.selections.activities.includes(activity));
+  const required = place.activities.filter(activity => state.selections.activities.some(a => canonicalActivity(a) === activity));
   const role = state.stopRoles[place.id] || stopRole(place.id);
   return PLACE_LIST.filter(candidate => candidate.id !== place.id &&
     candidate.activities.includes(role) && required.every(a => candidate.activities.includes(a)) &&
-    replacementRoute(place.id, candidate.id));
+    replacementRoute(place.id, candidate.id) &&
+    routeMeetsRequiredFacilities(replacementRoute(place.id,candidate.id)));
+}
+
+function changeCandidates(place) {
+  return PLACE_LIST.filter(candidate => candidate.id !== place.id &&
+    candidate.activities.some(activity => ACTIVITY_DURATIONS[activity]) &&
+    replacementRoute(place.id,candidate.id) &&
+    routeMeetsRequiredFacilities(replacementRoute(place.id,candidate.id)));
+}
+let changePlaceId=null, changeCategory=null, changeDraft=null, changeOpener=null;
+function closeChangeStop() {
+  document.querySelector('#change-stop-backdrop').classList.add('is-hidden');
+  document.querySelector('#change-stop-confirm').hidden=true;
+  if (changeOpener?.isConnected) changeOpener.focus();
+}
+function openChangeStop(id) {
+  changeOpener=document.activeElement;
+  changePlaceId=id;
+  changeCategory=null;
+  showChangeCategories();
+  document.querySelector('#change-stop-backdrop').classList.remove('is-hidden');
+  document.querySelector('#change-stop-options button')?.focus();
+}
+function showChangeCategories() {
+  document.querySelector('#change-stop-step').textContent='Change '+PLACES[changePlaceId].name;
+  document.querySelector('#change-stop-title').textContent='What would you like instead?';
+  document.querySelector('#change-stop-back').hidden=true;
+  document.querySelector('#change-stop-confirm').hidden=true;
+  const categories=[...new Set(changeCandidates(PLACES[changePlaceId]).flatMap(place=>place.activities))]
+    .filter(category=>ACTIVITY_DURATIONS[category]);
+  document.querySelector('#change-stop-options').innerHTML=categories.map(category=>
+    `<button class="editor-option" type="button" data-change-category="${category}"><span>${category==='Park'?'Rest or picnic':category}</span><span aria-hidden="true">›</span></button>`
+  ).join('') || '<p class="sheet-help">No curated replacement is available.</p>';
+}
+function showChangePlaces(category) {
+  changeCategory=category;
+  document.querySelector('#change-stop-step').textContent=category==='Park'?'Rest or picnic':category;
+  document.querySelector('#change-stop-title').textContent='Recommended places';
+  document.querySelector('#change-stop-back').hidden=false;
+  document.querySelector('#change-stop-confirm').hidden=true;
+  document.querySelector('#change-stop-options').innerHTML=changeCandidates(PLACES[changePlaceId])
+    .filter(place=>place.activities.includes(category)).map(place=>
+      `<button class="add-candidate" type="button" data-change-place="${place.id}"><strong>${place.name}</strong><span>${placeComparison(place)}</span><small>Choose this stop</small></button>`
+    ).join('');
+  document.querySelector('#change-stop-options button')?.focus();
+}
+function requestChangePlace(id) {
+  const route=replacementRoute(changePlaceId,id);
+  if(!route || !routeMeetsRequiredFacilities(route)) return;
+  const lost=activityCoverage(route).uncoveredActivities;
+  if(lost.length) {
+    changeDraft=id;
+    document.querySelector('#change-stop-options').hidden=true;
+    document.querySelector('#change-stop-warning').textContent=
+      `Changing this stop means your outing will no longer include ${lost.join(', ')}.`;
+    document.querySelector('#change-stop-confirm').hidden=false;
+    document.querySelector('#confirm-change-stop').focus();
+  } else applyChangePlace(id);
+}
+function applyChangePlace(id) {
+  const route=replacementRoute(changePlaceId,id);
+  if(!route) return;
+  const previousRole=state.stopRoles[changePlaceId];
+  const role=PLACES[id].activities.includes(changeCategory) ? changeCategory : stopRole(id);
+  const previousDuration=state.stopDurations[changePlaceId];
+  state.stopRoles[id]=role;
+  state.stopDurations[id]=previousRole===role ? previousDuration : ACTIVITY_DURATIONS[role].default;
+  if(previousRole===role && state.manualDurations[changePlaceId])
+    state.manualDurations[id]={...state.manualDurations[changePlaceId]};
+  delete state.stopRoles[changePlaceId];
+  delete state.stopDurations[changePlaceId];
+  delete state.manualDurations[changePlaceId];
+  if(state.manualPlaceOverrides[previousRole]===changePlaceId)
+    delete state.manualPlaceOverrides[previousRole];
+  state.manualPlaceOverrides[role]=id;
+  state.manuallyAddedStops=state.manuallyAddedStops.map(placeId=>placeId===changePlaceId?id:placeId);
+  state.selectedRouteVariant=route.id;
+  state.recommendedStops=[...route.placeIds];
+  renderSuggestedOuting();
+  closeChangeStop();
+  showToast(`${PLACES[id].name} added to your outing.`);
 }
 
 function placeComparison(place) {
@@ -420,8 +521,8 @@ function openPlaceDetails(id, showAlternatives = false) {
   document.querySelector('#google-maps-link').href =
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.googleMapsQuery)}`;
   const alternatives = alternativesFor(place);
-  document.querySelector('#change-place').hidden = alternatives.length === 0;
-  document.querySelector('#place-alternatives').hidden = !showAlternatives;
+  document.querySelector('#change-place').hidden = changeCandidates(place).length === 0;
+  document.querySelector('#place-alternatives').hidden = true;
   document.querySelector('#alternative-list').innerHTML = alternatives.map(candidate =>
     `<button type="button" class="alternative-place" data-place-id="${candidate.id}"><strong>${candidate.name}</strong><span>${placeComparison(candidate)} · ${state.stopDurations[id]} min</span></button>`
   ).join('');
@@ -483,7 +584,7 @@ document.querySelector('#itinerary').addEventListener('click', event => {
   const remove = event.target.closest('[data-remove]');
   const detail = event.target.closest('[data-detail]');
   if (duration) openDuration(duration.dataset.duration);
-  else if (change) openPlaceDetails(change.dataset.change, true);
+  else if (change) openChangeStop(change.dataset.change);
   else if (remove) requestRemoveStop(remove.dataset.remove);
   else if (detail) openPlaceDetails(detail.dataset.detail);
   else if (event.target.closest('[data-card]')) openPlaceDetails(event.target.closest('[data-card]').dataset.card);
@@ -509,11 +610,31 @@ document.querySelector('#duration-backdrop').addEventListener('click', event => 
   if (event.target.id === 'duration-backdrop') closeDuration();
 });
 document.querySelector('#close-place').onclick = closePlaceDetails;
+document.querySelector('#close-change-stop').onclick=closeChangeStop;
+document.querySelector('#change-stop-back').onclick=()=>{
+  document.querySelector('#change-stop-options').hidden=false;
+  showChangeCategories();
+};
+document.querySelector('#change-stop-options').onclick=event=>{
+  const category=event.target.closest('[data-change-category]');
+  const place=event.target.closest('[data-change-place]');
+  if(category) showChangePlaces(category.dataset.changeCategory);
+  else if(place) requestChangePlace(place.dataset.changePlace);
+};
+document.querySelector('#confirm-change-stop').onclick=()=>applyChangePlace(changeDraft);
+document.querySelector('#cancel-change-stop').onclick=()=>{
+  document.querySelector('#change-stop-options').hidden=false;
+  document.querySelector('#change-stop-confirm').hidden=true;
+};
 document.querySelector('#dismiss-place').onclick = closePlaceDetails;
 document.querySelector('#place-backdrop').addEventListener('click', event => {
   if (event.target.id === 'place-backdrop') closePlaceDetails();
 });
-document.querySelector('#change-place').onclick = () => { document.querySelector('#place-alternatives').hidden = false; };
+document.querySelector('#change-place').onclick = () => {
+  const id=detailPlaceId;
+  closePlaceDetails();
+  openChangeStop(id);
+};
 document.querySelector('#alternative-list').addEventListener('click', event => {
   const alternative = event.target.closest('.alternative-place');
   if (alternative) changePlace(alternative.dataset.placeId);
@@ -538,26 +659,12 @@ document.querySelector('#cancel-remove').onclick = () => {
 document.querySelector('#remove-backdrop').addEventListener('click', event => {
   if (event.target.id === 'remove-backdrop') document.querySelector('#cancel-remove').click();
 });
-document.querySelector('#increase-time').onclick = () => {
-  const options = [45, 60, 90, 120];
-  const total = itineraryTiming(ROUTE_VARIANTS[state.selectedRouteVariant]).totalMinutes;
-  const current = availableMinutes();
-  const next = options.find(minutes => minutes > current && minutes >= total) || options.find(minutes => minutes > current);
-  if (!next) return;
-  state.selections.time = next === 120 ? '2 hours' : `${next} min`;
-  document.querySelector('#time-value').textContent = state.selections.time;
-  state.planSignature = JSON.stringify({
-    activities: [...state.selections.activities].sort(), time: state.selections.time,
-    preferences: [...state.selections.preferences].sort()
-  });
-  renderSuggestedOuting();
-  showToast(`Available time increased to ${state.selections.time}.`);
-};
+document.querySelector('#increase-time').onclick = () => openEditor('time');
 
 // Keep keyboard focus in either new sheet. Escape cancels a duration draft.
 for (const [id, close] of [
   ['duration-backdrop', closeDuration], ['place-backdrop', closePlaceDetails],
-  ['add-stop-backdrop', closeAddStop],
+  ['add-stop-backdrop', closeAddStop], ['change-stop-backdrop',closeChangeStop],
   ['remove-backdrop', () => document.querySelector('#cancel-remove').click()]
 ]) {
   document.getElementById(id).addEventListener('keydown', event => {

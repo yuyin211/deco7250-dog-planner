@@ -24,6 +24,27 @@
           <div class="weather-card"><span class="weather-icon" aria-hidden="true">🌤️</span><span>27°C · Partly cloudy · Good for a walk</span></div>
         </div>
 
+        <div id="editor-screen" class="screen is-hidden" aria-label="Planning choice">
+          <div class="editor-handle sheet-handle" aria-hidden="true"></div>
+          <button id="editor-back" class="editor-back" type="button">‹ Back</button>
+          <header class="screen-header"><h1 id="editor-title">Activities</h1><p id="editor-help" class="editor-screen-help">Select all that apply</p></header>
+          <div id="editor-options" class="editor-screen-options"></div>
+          <div id="time-wheel" class="time-wheel" hidden>
+            <div><label for="duration-hours">Hours</label><select id="duration-hours" aria-label="Outing hours"></select></div>
+            <div><label for="duration-minutes">Minutes</label><select id="duration-minutes" aria-label="Outing minutes"></select></div>
+          </div>
+          <p id="time-wheel-value" class="time-wheel-value" hidden></p>
+        </div>
+        <div id="save-preferences-screen" class="screen profile-screen is-hidden">
+          <div class="profile-content"><span aria-hidden="true" class="profile-dog">🐶</span><h1>Save these preferences for next time?</h1><p>Outings will use your dog’s preferences.</p><button id="save-preferences" class="primary-button" type="button">Save</button><button id="skip-preferences" class="secondary-button" type="button">Not now</button></div>
+        </div>
+        <div id="dog-name-screen" class="screen profile-screen is-hidden">
+          <div class="profile-content"><h1>What’s your dog’s name?</h1><p>We’ll use this to personalise your outings.</p><label for="dog-name-input" class="visually-hidden">Dog name</label><input id="dog-name-input" type="text" maxlength="40" autocomplete="off" placeholder="Milo"><button id="save-dog-name" class="primary-button" type="button">Save</button></div>
+        </div>
+        <div id="completion-screen" class="screen profile-screen completion-screen is-hidden">
+          <div class="profile-content"><span aria-hidden="true" class="completion-check">✓</span><h1>Outing complete</h1><p id="completion-message"></p><div id="completion-facts" class="completion-facts"></div><p id="completion-route-note" hidden>Quieter route used</p><button id="completion-done" class="primary-button" type="button">Done</button></div>
+        </div>
+
         <div id="suggested-screen" class="screen is-hidden">
           <header class="screen-header"><p class="eyebrow">West End, Brisbane</p><h1>Suggested outing</h1></header>
           <div class="summary-chips" aria-label="Outing summary"><span>49 min</span><span>3.0 km</span><span>4 stops</span></div>
@@ -36,13 +57,14 @@
         </div>
 
         <div class="bottom-actions" id="plan-actions"><button class="primary-button" id="generate-button" type="button">Generate outing</button></div>
+        <div class="bottom-actions is-hidden" id="editor-actions"><button class="primary-button" id="save-editor" type="button">Done</button></div>
         <div class="bottom-actions suggested-actions is-hidden" id="suggested-actions"><button class="primary-button" id="start-button" type="button">Start outing</button><div class="secondary-actions"><button class="secondary-button" id="map-button" type="button">View map</button><button class="secondary-button" id="adjust-button" type="button">Adjust plan</button></div></div>
         <section id="map-screen" class="is-hidden" aria-label="Outing map">
           <header class="map-heading">
             <button id="map-back" class="icon-button" aria-label="Back to suggested outing" type="button">‹</button>
-            <div><span id="route-badge" hidden>QUIETER ROUTE</span><h1 id="map-title">Route map</h1><p id="map-context">West End, Brisbane</p></div>
+            <div><span id="route-badge" hidden>QUIETER ROUTE</span><span id="navigation-next-label" hidden>NEXT</span><h1 id="map-title">Route map</h1><p id="map-context">West End, Brisbane</p></div>
           </header>
-          <div class="map-legend"><span><i class="quiet-line"></i>Quiet</span><span><i class="moderate-line"></i>Moderate</span><span><i class="busy-line"></i>Busy</span><span>💧 Water</span><span>🗑️ Bin</span></div>
+          <div class="map-legend"><span><i class="quiet-line"></i>Quiet</span><span><i class="moderate-line"></i>Moderate</span><span><i class="busy-line"></i>Busy</span><span id="legend-water" hidden>💧 Water</span><span id="legend-bin" hidden>🗑️ Bin</span></div>
           <div class="map-area">
             <div id="outing-map" aria-label="West End route map"></div>
             <p id="map-unavailable" role="status" hidden>Map tiles unavailable. You can continue the demo.</p>
@@ -51,7 +73,7 @@
           <footer id="review-actions" class="map-review-actions"><p id="review-summary"></p><button id="review-start" class="primary-button" type="button">Start outing</button></footer>
           <section id="navigation-sheet" class="navigation-sheet" hidden aria-label="Navigation details">
             <div class="sheet-handle" aria-hidden="true"></div>
-            <div class="navigation-glance"><div><small>Walking left</small><strong id="remaining-time"></strong></div><span aria-label="Water nearby">💧 <span id="water-distance"></span></span><span aria-label="Bin nearby">🗑️ <span id="bin-distance"></span></span><button id="expand-navigation" class="secondary-button" type="button" aria-expanded="false" aria-controls="navigation-details">⌃ More</button></div>
+            <div class="navigation-glance"><div><small>Remaining</small><strong id="remaining-time"></strong></div><span aria-label="Water on route">💧 <span id="water-distance"></span></span><span aria-label="Bin on route">🗑️ <span id="bin-distance"></span></span><button id="expand-navigation" class="secondary-button" type="button" aria-expanded="false" aria-controls="navigation-details">⌃ More</button></div>
             <div id="navigation-details" hidden>
               <p class="detail-distance">Distance remaining <strong id="remaining-distance"></strong></p>
               <h2>Upcoming stops</h2><ol id="upcoming-stops"></ol>
@@ -59,7 +81,7 @@
               <p id="dog-context" class="dog-context"></p>
             </div>
             <p id="route-confirmation" class="route-confirmation" role="status" hidden>✓ Quieter route selected</p>
-            <div class="demo-actions"><button id="next-step" type="button">Next demo step →</button><button id="end-outing" type="button">End outing</button></div>
+            <div class="demo-actions"><button id="next-step" type="button">Next step →</button><button id="end-outing" type="button">End outing</button></div>
             <p class="simulation-label">Simulated navigation · Crowd and facilities are sample data</p>
           </section>
           <div id="crowd-overlay" hidden>
@@ -79,7 +101,6 @@
       <p class="prototype-hint">Tap dots to jump between key screens</p>
     </main>
 
-    <div class="modal-backdrop is-hidden" id="modal-backdrop"><section class="editor-sheet" role="dialog" aria-modal="true" aria-labelledby="editor-title"><div class="sheet-handle" aria-hidden="true"></div><div class="sheet-header"><h2 id="editor-title">Edit outing</h2><button class="close-button" id="close-editor" type="button" aria-label="Close editor">×</button></div><p class="sheet-help" id="editor-help">Choose an option</p><div class="editor-options" id="editor-options"></div><button class="primary-button sheet-save" id="save-editor" type="button">Save choice</button></section></div>
     <div class="modal-backdrop is-hidden" id="duration-backdrop">
       <section class="editor-sheet place-sheet" role="dialog" aria-modal="true" aria-labelledby="duration-title">
         <div class="sheet-handle" aria-hidden="true"></div>
@@ -104,6 +125,15 @@
         <div class="sheet-header"><div><p class="place-type" id="add-stop-step">Add a stop</p><h2 id="add-stop-title">What would you like to add?</h2></div><button class="close-button" id="close-add-stop" type="button" aria-label="Close add stop">×</button></div>
         <button id="add-stop-back" class="text-button add-stop-back" type="button" hidden>← Categories</button>
         <div id="add-stop-options" class="editor-options add-stop-options"></div>
+      </section>
+    </div>
+    <div class="modal-backdrop is-hidden" id="change-stop-backdrop">
+      <section class="editor-sheet add-stop-sheet" role="dialog" aria-modal="true" aria-labelledby="change-stop-title">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="sheet-header"><div><p class="place-type" id="change-stop-step">Change stop</p><h2 id="change-stop-title">What would you like instead?</h2></div><button class="close-button" id="close-change-stop" type="button" aria-label="Close change stop">×</button></div>
+        <button id="change-stop-back" class="text-button add-stop-back" type="button" hidden>‹ Categories</button>
+        <div id="change-stop-options" class="editor-options add-stop-options"></div>
+        <div id="change-stop-confirm" class="change-stop-confirm" hidden><p id="change-stop-warning"></p><button id="confirm-change-stop" class="primary-button" type="button">Continue</button><button id="cancel-change-stop" class="secondary-button" type="button">Cancel</button></div>
       </section>
     </div>
     <div class="modal-backdrop is-hidden" id="place-backdrop">

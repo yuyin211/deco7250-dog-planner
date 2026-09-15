@@ -33,12 +33,6 @@ const outingMap = {
     this.busySegmentLayer = L.layerGroup().addTo(this.map);
     this.stopLayer = L.layerGroup().addTo(this.map);
     this.facilityLayer = L.layerGroup().addTo(this.map);
-    OUTING_FACILITIES.forEach(facility => {
-      L.marker(facility.position, {
-        icon: L.divIcon({className: 'facility-marker', html: facility.symbol, iconSize: [20, 20]}),
-        title: `${facility.kind} · sample facility`
-      }).bindPopup(`${facility.kind} · simulated facility`).addTo(this.facilityLayer);
-    });
     this.position = L.circleMarker([PLACES.davies_market.latitude, PLACES.davies_market.longitude], {
       radius: 8, color: '#fff', weight: 3, fillColor: '#386f65', fillOpacity: 1
     });
@@ -47,6 +41,14 @@ const outingMap = {
   renderStops(route) {
     if (!this.map) return;
     this.stopLayer.clearLayers();
+    this.facilityLayer.clearLayers();
+    routeFacilities(route).filter((facility,index,all) =>
+      all.findIndex(other => other.kind === facility.kind) === index).forEach(facility => {
+      L.marker(facility.position, {
+        icon: L.divIcon({className: 'facility-marker', html: facility.symbol, iconSize: [20, 20]}),
+        title: `${facility.kind} · sample waypoint`
+      }).bindPopup(`${facility.kind} · simulated waypoint on this route`).addTo(this.facilityLayer);
+    });
     route.placeIds.forEach((placeId, index) => {
       const place = PLACES[placeId];
       const marker = L.marker([place.latitude, place.longitude], {
@@ -70,7 +72,7 @@ const outingMap = {
     this.activeRouteId = route.id;
     this.alternativePolyline = null;
     L.polyline(route.coordinates, {color: '#fff', weight: 8, opacity: 0.9}).addTo(this.activeRouteLayer);
-    this.activePolyline = L.polyline(route.coordinates, {color: route.isPlanB ? '#397d70' : '#72ac8a', weight: 5, dashArray: null}).addTo(this.activeRouteLayer);
+    this.activePolyline = L.polyline(route.coordinates, {color: route.isPlanB ? '#397d70' : '#508b7e', weight: 5, lineCap:'round', lineJoin:'round', dashArray: null}).addTo(this.activeRouteLayer);
     if (route.busySegment) {
       const [start, end] = route.busySegment;
       L.polyline(route.coordinates.slice(start, end + 1), {color: busy ? '#dc705c' : '#d7ae62', weight: 6}).addTo(this.busySegmentLayer);

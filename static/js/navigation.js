@@ -1,6 +1,7 @@
 // Deterministic client-side navigation state. The recommended route supplies
 // geometry, stops, demo steps and (for the default scenario) crowd adaptation.
-const navigation = {route: 'default_quiet', step: 0, active: false, busy: false, decided: false, alert: false};
+const navigation = {route: 'default_quiet', step: 0, active: false, busy: false, decided: false, alert: false,
+  walkedMeters: 0, visitedStopIds: [], visitMinutes: 0, usedPlanB: false};
 const mapScreen = document.querySelector('#map-screen');
 const navigationSheet = document.querySelector('#navigation-sheet');
 const crowdOverlay = document.querySelector('#crowd-overlay');
@@ -23,6 +24,24 @@ function selectedRoute() {
 
 function activeRoute() {
   return ROUTE_VARIANTS[navigation.route];
+}
+
+function upcomingRouteFacility(route, coordinateIndex, kind) {
+  return routeFacilities(route).filter(facility => facility.kind === kind &&
+    facility.coordinateIndex >= coordinateIndex)
+    .sort((a,b) => a.coordinateIndex - b.coordinateIndex)[0] || null;
+}
+function facilityDistanceOnRoute(route, coordinateIndex, kind) {
+  const facility = upcomingRouteFacility(route, coordinateIndex, kind);
+  return facility ? routeDistance(route.coordinates.slice(coordinateIndex, facility.coordinateIndex + 1)) : null;
+}
+function updateFacilityIndicators(route, coordinateIndex) {
+  for (const kind of ['Water','Bin']) {
+    const distance=facilityDistanceOnRoute(route, coordinateIndex, kind);
+    document.querySelector(`#${kind.toLowerCase()}-distance`).textContent=
+      distance === null ? '—' : formatDistance(distance);
+    document.querySelector(`#legend-${kind.toLowerCase()}`).hidden=!routeHasFacility(route, kind);
+  }
 }
 
 function enterMap() {
@@ -52,16 +71,23 @@ function reviewRoute() {
   navigationSheet.hidden = true;
   document.querySelector('#review-actions').hidden = false;
   document.querySelector('#route-badge').hidden = true;
+  document.querySelector('#navigation-next-label').hidden = true;
   document.querySelector('#map-title').textContent = 'Route map';
   document.querySelector('#map-context').textContent = `West End, Brisbane · ${route.distanceKm.toFixed(1)} km`;
   document.querySelector('#review-summary').textContent = routeSummary(route).join(' · ');
+  updateFacilityIndicators(route, 0);
   requestAnimationFrame(() => outingMap.review(route));
 }
 
 function startNavigation() {
   const route = selectedRoute();
   enterMap();
-  Object.assign(navigation, {route: route.id, step: 0, active: true, busy: false, decided: false, alert: false});
+  Object.assign(navigation, {route: route.id, step: 0, active: true, busy: false, decided: false, alert: false,
+    walkedMeters: 0, visitedStopIds: [], visitMinutes: 0, usedPlanB: false});
+  if (route.stopIndexes[0] === route.navigationSteps[0]) {
+    navigation.visitedStopIds.push(route.placeIds[0]);
+    navigation.visitMinutes=state.stopDurations[route.placeIds[0]] || 0;
+  }
   document.querySelector('.app-frame').classList.add('navigating');
   document.querySelector('#review-actions').hidden = true;
   navigationSheet.hidden = false;
@@ -85,25 +111,25 @@ function renderNavigation() {
   const nextStop = upcomingIndex < 0 ? route.placeIds.length - 1 : upcomingIndex;
   const finished = coordinateIndex === route.coordinates.length - 1;
   const lastPlace = PLACES[route.placeIds[route.placeIds.length - 1]];
-  document.querySelector('#map-title').textContent = finished ? 'Outing complete' : PLACES[route.placeIds[nextStop]].name;
+  document.querySelector('#map-title').textContent = finished ? lastPlace.name : PLACES[route.placeIds[nextStop]].name;
+  document.querySelector('#navigation-next-label').hidden=finished;
+  document.querySelector('#navigation-next-label').textContent='NEXT';
   const toStop = finished ? 0 : upcomingIndex < 0 ? remainingMeters : routeDistance(route.coordinates.slice(coordinateIndex, route.stopIndexes[nextStop] + 1));
   document.querySelector('#map-context').textContent = finished ? `You’ve reached ${lastPlace.name}` : `${formatDistance(toStop)} · Follow the ${route.isPlanB ? 'quieter route' : 'highlighted route'}`;
   document.querySelector('#route-badge').hidden = !route.isPlanB;
   document.querySelector('#remaining-time').textContent = `${remainingMinutes} min`;
   document.querySelector('#remaining-distance').textContent = formatDistance(remainingMeters);
   document.querySelector('#review-summary').textContent = routeSummary(route).join(' · ');
-  OUTING_FACILITIES.forEach(facility => {
-    document.querySelector(`#${facility.kind.toLowerCase()}-distance`).textContent = formatDistance(geoDistance(point, facility.position));
-  });
+  updateFacilityIndicators(route, coordinateIndex);
   document.querySelector('#upcoming-stops').innerHTML = route.placeIds.map((placeId, index) => {
     if (route.stopIndexes[index] <= coordinateIndex) return '';
     const place = PLACES[placeId];
     return `<li><span class="stop-number">${index + 1}</span><div><strong>${place.name}</strong><p>${place.type}</p></div></li>`;
   }).join('') || `<li>All ${route.placeIds.length} ${route.placeIds.length === 1 ? 'stop' : 'stops'} completed</li>`;
   const preference = state.selections.preferences.join(', ').toLowerCase();
-  document.querySelector('#dog-context').textContent = `Milo · ${preference}. ${route.isPlanB ? 'Quieter route selected.' : navigation.busy ? 'Busy corridor ahead.' : 'Route is currently quiet to moderate.'}`;
+  document.querySelector('#dog-context').textContent = `${state.dogName} · ${preference}. ${route.isPlanB ? 'Quieter route selected.' : navigation.busy ? 'Busy corridor ahead.' : 'Route is currently quiet to moderate.'}`;
   document.querySelector('#next-step').disabled = finished || navigation.alert;
-  document.querySelector('#next-step').textContent = finished ? 'All stops reached' : 'Next demo step →';
+  document.querySelector('#next-step').textContent = finished ? 'All stops reached' : 'Next step →';
   const comparisonRoute = navigation.alert && route.planB ? ROUTE_VARIANTS[route.planB] : null;
   outingMap.draw(route, navigation.busy, comparisonRoute);
   outingMap.focus(route, coordinateIndex, comparisonRoute);
@@ -113,7 +139,17 @@ function advanceNavigation() {
   if (!navigation.active || navigation.alert) return;
   const route = activeRoute();
   if (navigation.step >= route.navigationSteps.length - 1) return;
+  const fromIndex=route.navigationSteps[navigation.step];
   navigation.step += 1;
+  const toIndex=route.navigationSteps[navigation.step];
+  navigation.walkedMeters += routeDistance(route.coordinates.slice(fromIndex,toIndex+1));
+  route.stopIndexes.forEach((stopIndex,index) => {
+    const id=route.placeIds[index];
+    if (stopIndex > fromIndex && stopIndex <= toIndex && !navigation.visitedStopIds.includes(id)) {
+      navigation.visitedStopIds.push(id);
+      navigation.visitMinutes += state.stopDurations[id] || 0;
+    }
+  });
   if (route.crowdTriggerStep === navigation.step && !navigation.decided) {
     navigation.busy = true;
     navigation.alert = true;
@@ -122,13 +158,22 @@ function advanceNavigation() {
     document.querySelector('#crowd-title-text').textContent = route.crowdAlertLabel || 'Busy area ahead';
     document.querySelector('#alternative-time').textContent = route.alternativeMinutesText;
     document.querySelector('#alternative-distance').textContent = route.alternativeDistanceText;
-    document.querySelector('#crowd-dog-context').textContent = state.selections.preferences.includes('Prefers quieter areas') ? 'Milo prefers quieter areas.' : 'A quieter option is available for Milo.';
+    document.querySelector('#crowd-dog-context').textContent = state.selections.preferences.includes('Prefers quieter areas') ? `${state.dogName} prefers quieter areas.` : `A quieter option is available for ${state.dogName}.`;
     navigationSheet.inert = true;
     document.querySelector('.map-heading').inert = true;
     document.querySelector('.map-area').style.flexBasis = '260px';
     document.querySelector('#switch-route').focus();
   }
   renderNavigation();
+  if (toIndex === route.coordinates.length - 1) finishOuting(false);
+  else if (route.stopIndexes.some(index => index > fromIndex && index <= toIndex)) {
+    const arrived=PLACES[navigation.visitedStopIds.at(-1)].name;
+    document.querySelector('#navigation-next-label').textContent='ARRIVED';
+    document.querySelector('#map-title').textContent='You have arrived';
+    document.querySelector('#map-context').textContent=arrived+' · Continue when ready';
+    document.querySelector('#route-confirmation').textContent='✓ '+arrived;
+    document.querySelector('#route-confirmation').hidden=false;
+  }
 }
 
 function closeCrowdAlert() {
@@ -149,10 +194,12 @@ function decideRoute(switchRoute) {
     navigation.route = current.planB;
     navigation.step = current.planBSwitchStep;
     navigation.busy = false;
+    navigation.usedPlanB = true;
     state.selectedRouteVariant = alternative.id;
     renderSuggestedOuting();
   }
   closeCrowdAlert();
+  document.querySelector('#route-confirmation').textContent='✓ Quieter route selected';
   document.querySelector('#route-confirmation').hidden = !switchRoute;
   renderNavigation();
   if (switchRoute && outingMap.map) {
@@ -167,7 +214,59 @@ document.querySelector('#map-button').onclick = reviewRoute;
 document.querySelector('#start-button').onclick = startNavigation;
 document.querySelector('#review-start').onclick = startNavigation;
 document.querySelector('#map-back').onclick = closeMap;
-document.querySelector('#end-outing').onclick = closeMap;
+function finishOuting(manual) {
+  if (!navigation.active) return;
+  const route=activeRoute();
+  if (!manual) {
+    navigation.walkedMeters=Math.max(navigation.walkedMeters, routeDistance(route.coordinates));
+    route.placeIds.forEach(id=>{
+      if (!navigation.visitedStopIds.includes(id)) {
+        navigation.visitedStopIds.push(id);
+        navigation.visitMinutes += state.stopDurations[id] || 0;
+      }
+    });
+  }
+  navigation.active=false;
+  closeCrowdAlert();
+  mapScreen.classList.add('is-hidden');
+  document.querySelector('.app-frame').classList.remove('map-mode','navigating');
+  document.querySelector('.screen-dots').classList.add('is-hidden');
+  const minutes=Math.max(1, Math.round(navigation.walkedMeters/60)+navigation.visitMinutes);
+  document.querySelector('#completion-message').textContent=manual
+    ? `Nice time outside with ${state.dogName}. Here is your outing so far.`
+    : `Nice outing with ${state.dogName}!`;
+  document.querySelector('#completion-facts').innerHTML=
+    `<div><strong>${formatDuration(minutes)}</strong><span>time outside</span></div>`+
+    `<div><strong>${formatDistance(navigation.walkedMeters)}</strong><span>walked</span></div>`+
+    `<div><strong>${navigation.visitedStopIds.length}</strong><span>places visited</span></div>`;
+  document.querySelector('#completion-route-note').hidden=!navigation.usedPlanB;
+  showStandalone('#completion-screen','completion');
+}
+function doneAfterOuting() {
+  Object.assign(navigation,{route:'default_quiet',step:0,active:false,busy:false,decided:false,alert:false,
+    walkedMeters:0,visitedStopIds:[],visitMinutes:0,usedPlanB:false});
+  state.selectedRouteVariant='default_quiet';
+  state.recommendedStops=[];
+  state.systemRecommendedStops=[];
+  state.manuallyAddedStops=[];
+  state.manuallyRemovedStopIds=[];
+  state.manualPlaceOverrides={};
+  state.manualDurations={};
+  state.stopDurations={};
+  state.stopRoles={};
+  state.planSignature=null;
+  state.selections={companions:state.dogName,
+    activities:['Market','Riverside walk','Café or food'],time:90,
+    preferences:[...(state.savedDogProfile?.preferences || DEFAULT_PREFERENCES)]};
+  state.currentOutingDogPreferences=[...state.selections.preferences];
+  refreshPlanningValues();
+  updateGenerateAvailability();
+  document.querySelector('.screen-dots').classList.remove('is-hidden');
+  document.querySelector('.prototype-hint').textContent='Tap dots to jump between key screens';
+  showScreen('plan');
+}
+document.querySelector('#end-outing').onclick = () => finishOuting(true);
+document.querySelector('#completion-done').onclick=doneAfterOuting;
 document.querySelector('#next-step').onclick = advanceNavigation;
 document.querySelector('#switch-route').onclick = () => decideRoute(true);
 document.querySelector('#keep-route').onclick = () => decideRoute(false);

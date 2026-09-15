@@ -347,7 +347,9 @@ const OUTING_ROUTES = {
 
 // Facility positions are simulated metadata, not live facility claims.
 const OUTING_FACILITIES = [
-  {kind: 'Water', symbol: '💧', position: OUTING_ROUTES.A.coordinates[90]},
+  // Prototype waypoint on the shared riverside path; both Route A and Plan B
+  // pass it. Presence is route-specific, never inferred from proximity.
+  {kind: 'Water', symbol: '💧', position: OUTING_ROUTES.A.coordinates[119]},
   {kind: 'Bin', symbol: '🗑️', position: OUTING_ROUTES.A.coordinates[130]}
 ];
 // Curated recommendation variants. Literal geometry below was extracted from
@@ -1846,3 +1848,18 @@ ROUTE_VARIANTS.default_quiet.planBSwitchStep = 2;
 ROUTE_VARIANTS.default_quiet.crowdAlertLabel = 'Busy riverside section ahead';
 ROUTE_VARIANTS.default_quiet.alternativeMinutesText = '+6 min';
 ROUTE_VARIANTS.default_quiet.alternativeDistanceText = '+400 m';
+
+function routeFacilities(route) {
+  return OUTING_FACILITIES.flatMap(facility => {
+    return route.coordinates.flatMap((point,index) =>
+      sameCoordinate(point,facility.position) ? [{...facility,coordinateIndex:index}] : []);
+  });
+}
+
+function routeHasFacility(route, kind) {
+  return routeFacilities(route).some(facility => facility.kind === kind);
+}
+
+function facilityPairEligible(route, kind) {
+  return routeHasFacility(route, kind) && (!route.planB || routeHasFacility(ROUTE_VARIANTS[route.planB], kind));
+}
