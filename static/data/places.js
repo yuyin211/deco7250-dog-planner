@@ -82,11 +82,31 @@ const PLACES = {
     waterAvailable: false,
     googleMapsQuery: 'Orleigh Park West End Brisbane'
   },
+  west_village: {
+    id: 'west_village',
+    name: 'West Village',
+    displayName: 'West Village outdoor retail precinct',
+    type: 'Outdoor retail precinct',
+    activities: ['Shopping'],
+    activityFit: {Shopping: 5},
+    latitude: -27.4781298,
+    longitude: 153.0120588,
+    shortDescription: 'Outdoor retail, dining and public spaces in West End. Pets are welcome in outdoor retail areas; individual cafés and restaurants decide access to outdoor dining.',
+    dogInfo: ['Pet-friendly outdoor retail areas', 'Dogs should remain under control', 'Individual stores may have different access rules'],
+    comparisonFacts: 'Outdoor retail · Pet-friendly outdoor areas',
+    facilities: [],
+    quietScore: 3,
+    dogSocialScore: 3,
+    waterAvailable: false,
+    accessSource: 'https://www.westvillage.com.au/retail/faqs/',
+    googleMapsQuery: 'West Village 97 Boundary Street West End Brisbane'
+  },
   boundary_precinct: {
     id: 'boundary_precinct',
     name: 'Boundary Street precinct',
     type: 'Shopping precinct',
     activities: ['Shopping'],
+    comparisonFacts: 'Local shops · Street-based outing',
     // A dedicated shopping option prevents Shopping-only plans defaulting to
     // the multi-purpose market solely because of generic dog scores.
     activityFit: {Shopping: 5},

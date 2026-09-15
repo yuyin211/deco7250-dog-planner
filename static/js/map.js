@@ -2,7 +2,11 @@
 // navigation.js owns progression along it.
 const outingMap = {
   map: null,
-  routeLayer: null,
+  activeRouteLayer: null,
+  alternativeRouteLayer: null,
+  busySegmentLayer: null,
+  activePolyline: null,
+  alternativePolyline: null,
   stopLayer: null,
   facilityLayer: null,
   position: null,
@@ -14,6 +18,8 @@ const outingMap = {
       return;
     }
     this.map = L.map('outing-map', {zoomControl: false, scrollWheelZoom: false, zoomSnap: 0.5});
+    // Initialise a viewport before adding vector layers (also on direct Start).
+    this.map.setView([PLACES.davies_market.latitude, PLACES.davies_market.longitude], 15);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -22,7 +28,9 @@ const outingMap = {
     }).on('tileload', () => {
       document.querySelector('#map-unavailable').hidden = true;
     }).addTo(this.map);
-    this.routeLayer = L.layerGroup().addTo(this.map);
+    this.activeRouteLayer = L.layerGroup().addTo(this.map);
+    this.alternativeRouteLayer = L.layerGroup().addTo(this.map);
+    this.busySegmentLayer = L.layerGroup().addTo(this.map);
     this.stopLayer = L.layerGroup().addTo(this.map);
     this.facilityLayer = L.layerGroup().addTo(this.map);
     OUTING_FACILITIES.forEach(facility => {
@@ -54,17 +62,23 @@ const outingMap = {
 
   draw(route, busy = false, comparisonRoute = null) {
     if (!this.map) return;
-    this.routeLayer.clearLayers();
-    L.polyline(route.coordinates, {color: '#fff', weight: 8, opacity: 0.9}).addTo(this.routeLayer);
-    L.polyline(route.coordinates, {color: route.isPlanB ? '#397d70' : '#72ac8a', weight: 5}).addTo(this.routeLayer);
+    // Rebuild each owned layer explicitly: no old solid, dashed or busy path
+    // survives a switch. The supplied active route is the only rendering source.
+    this.activeRouteLayer.clearLayers();
+    this.alternativeRouteLayer.clearLayers();
+    this.busySegmentLayer.clearLayers();
+    this.activeRouteId = route.id;
+    this.alternativePolyline = null;
+    L.polyline(route.coordinates, {color: '#fff', weight: 8, opacity: 0.9}).addTo(this.activeRouteLayer);
+    this.activePolyline = L.polyline(route.coordinates, {color: route.isPlanB ? '#397d70' : '#72ac8a', weight: 5, dashArray: null}).addTo(this.activeRouteLayer);
     if (route.busySegment) {
       const [start, end] = route.busySegment;
-      L.polyline(route.coordinates.slice(start, end + 1), {color: busy ? '#dc705c' : '#d7ae62', weight: 5}).addTo(this.routeLayer);
+      L.polyline(route.coordinates.slice(start, end + 1), {color: busy ? '#dc705c' : '#d7ae62', weight: 6}).addTo(this.busySegmentLayer);
     }
     if (comparisonRoute) {
       const sharedIndex = route.navigationSteps[navigation.step];
-      const alternativeIndex = comparisonRoute.navigationSteps[navigation.step];
-      L.polyline(comparisonRoute.coordinates.slice(alternativeIndex), {color: '#326b63', weight: 5, dashArray: '8 7'}).addTo(this.routeLayer);
+      const alternativeIndex = comparisonRoute.navigationSteps[route.planBSwitchStep];
+      this.alternativePolyline = L.polyline(comparisonRoute.coordinates.slice(alternativeIndex), {color: '#326b63', weight: 5, dashArray: '8 7'}).addTo(this.alternativeRouteLayer);
       this.map.fitBounds([
         ...route.coordinates.slice(sharedIndex),
         ...comparisonRoute.coordinates.slice(alternativeIndex)

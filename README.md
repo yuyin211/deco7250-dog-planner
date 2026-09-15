@@ -36,9 +36,17 @@ Preferences cannot outweigh missing activity coverage. The selectable activity
 set is Market, Riverside walk, Café or food, Park and Shopping. Dog social time
 is descriptive suitability metadata rather than a planning activity.
 
-Shopping-specific fit is ranked before generic dog suitability. Boundary Street
-is the dedicated Shopping option, while Davies Park / West End Markets can still
-cover Market, Park and Shopping in combined plans.
+Shopping-specific fit is ranked before generic dog suitability. West Village
+offers outdoor retail, while Boundary Street offers a street-based shopping
+outing. Davies Park / West End Markets can still cover Market, Park and Shopping
+in combined plans. The existing recommendation priority order is unchanged.
+
+West Village uses the OSM-mapped outdoor entrance at 97 Boundary Street
+(-27.4781298, 153.0120588), with a 20-minute Shopping default and no rating.
+Its [official FAQ](https://www.westvillage.com.au/retail/faqs/) supports outdoor
+retail pet access; individual cafés/restaurants decide outdoor dining access.
+The app does not claim access to every indoor shop. Add Shopping offers both
+retail destinations where a matching insertion exists, without duplicates.
 
 Tap a stop for details, its duration for a focused picker, or the small Change
 action for alternatives. Change swaps only that role using an exact matching
@@ -97,6 +105,10 @@ clears prior add/remove edits. State lasts until page reload.
 - `static/data/places.js`: curated place copy and editable prototype scores.
 - `static/data/routes.js`: Route A, Plan B and recommendation-variant geometry,
   sample facilities, step indexes, crowd corridor, and trigger configuration.
+- `static/data/route-paths.js`: shared OSM coordinates, prepared detours and
+  West Village route combinations. No routing API is called by the app.
+- `scripts/build_route_geometry.py`: prepares/validates that data offline from
+  an OSM XML extract. Only public walkable ways are included.
 - `static/js/recommendation.js`: coverage, ranking, timing, duration picker,
   itinerary rendering, place details and same-role replacement.
 - `static/js/map.js`: Leaflet layers, numbered markers, attribution and viewport.
@@ -128,6 +140,54 @@ under [ODbL](https://www.openstreetmap.org/copyright). Leaflet/OpenStreetMap
 attribution remains visible on the map.
 
 ## Validation and limits
+
+### Route-switch correction and West Village
+
+The previous non-default Plan Bs mostly removed a tiny side edge and otherwise
+overlapped Route A. For Riverside → Orleigh, the alert was even on a coordinate
+absent from Plan B. The dashed preview used Route A's step number to index a
+different Plan B step list, and switching guessed the nearest step. This made
+the preview, marker and apparent path change inconsistent. The old layer group
+was cleared; stale group references were not the primary cause.
+
+The renderer now owns separate active, alternative and busy layer groups, with
+one explicit active polyline. Switching rebuilds them, removes the old SVG path,
+clears dashed/busy overlays and shows the new route bounds. Every route pair
+includes the exact same switch coordinate in both step lists. The active plan,
+Suggested summary, review summary, remaining travel and marker use Plan B after
+Switch. Keep retains the primary geometry. The original default Plan B is kept.
+
+All 42 primary routes have prepared alternatives. Non-default detours separate
+at least 55 metres from their primary path and add at least 150 metres of real
+walking geometry. Short approaches with no viable detour were extended along
+mapped public paths. The return legs of out-and-back routes also avoid the
+busy edge. These are illustrative walking routes, not optimal route promises.
+
+West Village support includes a shopping stroll, either café + West Village,
+West Village + Riverside, West Village + Orleigh, café/retail/riverside/park,
+Market + West Village and West Village + Boundary Street. Parallel Boundary
+Street combinations support Add/Change while preserving the other stop roles.
+
+Retained regression checks:
+
+- `scripts/validate_route_switch.cjs <jsdom-module-path> <leaflet.js-path>` runs
+  real Leaflet in a DOM environment. It inspects active coordinates and SVG
+  paths, layer counts, removed layers, dashed/busy cleanup, exact marker
+  continuity, summary changes and completion for both branches of all 42 routes.
+  Map methods are not stubbed. It also checks Shopping Add/Change and West
+  Village access wording, Google Maps action and default duration.
+- `python scripts/build_route_geometry.py <osm-xml-path> --verify` checks every
+  consecutive coordinate against public walkable OSM edges, and every stop
+  against its place coordinate. All 84 primary/alternative paths passed.
+- Single-stop removals across supported multi-stop routes retain a shared
+  switch point and exclude their configured busy edge after switching.
+
+These checks use external validation tooling; the Flask app has no new runtime
+dependencies. Browser discovery returned no available browser, so a live tile
+screenshot remains unverified. DOM checks inspect rendered Leaflet SVG geometry
+but do not replace a visual review in a real browser.
+
+### Earlier-stage validation history
 
 Recommendation audit corrected the hard stop-count filter that excluded
 café + riverside, walking-only summaries, summed place-score bias, inaccurate
@@ -179,8 +239,8 @@ Latest review checks additionally confirmed:
   deterministic alert. Their Plan Bs exclude the configured busy edge; Switch
   and Keep each reach completion without a second alert.
 
-The temporary DOM harness uses external cached tooling, not a new app dependency.
-It was removed after validation; no test framework or package manifest was added.
+Earlier temporary DOM harnesses were removed. The route-switch regression above
+is retained because the previous state-only checks missed the geographic bug.
 
 Both Switch and Keep flows were exercised in a DOM integration check using
 the actual Leaflet script, including markers, attribution, completion,

@@ -91,6 +91,7 @@ function renderNavigation() {
   document.querySelector('#route-badge').hidden = !route.isPlanB;
   document.querySelector('#remaining-time').textContent = `${remainingMinutes} min`;
   document.querySelector('#remaining-distance').textContent = formatDistance(remainingMeters);
+  document.querySelector('#review-summary').textContent = routeSummary(route).join(' · ');
   OUTING_FACILITIES.forEach(facility => {
     document.querySelector(`#${facility.kind.toLowerCase()}-distance`).textContent = formatDistance(geoDistance(point, facility.position));
   });
@@ -144,21 +145,21 @@ function decideRoute(switchRoute) {
   const current = activeRoute();
   navigation.decided = true;
   if (switchRoute && current.planB) {
-    const currentPoint = current.coordinates[current.navigationSteps[navigation.step]];
     const alternative = ROUTE_VARIANTS[current.planB];
-    const nearestCoordinate = alternative.coordinates.reduce((best, point, index) =>
-      geoDistance(currentPoint, point) < best.distance
-        ? {index, distance: geoDistance(currentPoint, point)} : best,
-    {index: 0, distance: Infinity}).index;
     navigation.route = current.planB;
-    navigation.step = alternative.navigationSteps.reduce((best, coordinateIndex, index) =>
-      Math.abs(coordinateIndex - nearestCoordinate) < best.distance
-        ? {index, distance: Math.abs(coordinateIndex - nearestCoordinate)} : best,
-    {index: 0, distance: Infinity}).index;
+    navigation.step = current.planBSwitchStep;
+    navigation.busy = false;
+    state.selectedRouteVariant = alternative.id;
+    renderSuggestedOuting();
   }
   closeCrowdAlert();
   document.querySelector('#route-confirmation').hidden = !switchRoute;
   renderNavigation();
+  if (switchRoute && outingMap.map) {
+    // Show the new geographic path immediately, before following its next step.
+    const route = activeRoute();
+    outingMap.map.fitBounds(route.coordinates.slice(route.navigationSteps[navigation.step]), {padding: [27, 30], animate: false});
+  }
   document.querySelector('#next-step').focus();
 }
 

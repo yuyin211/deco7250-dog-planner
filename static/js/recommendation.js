@@ -394,6 +394,7 @@ function alternativesFor(place) {
 }
 
 function placeComparison(place) {
+  if (place.comparisonFacts) return place.comparisonFacts;
   const traits = [];
   if (place.quietScore >= 4) traits.push('Quieter');
   if (place.dogSocialScore >= 4) traits.push('More social');
@@ -410,9 +411,9 @@ function openPlaceDetails(id, showAlternatives = false) {
   detailPlaceId = id;
   detailOpener = document.activeElement;
   document.querySelector('#place-type').textContent = place.type;
-  document.querySelector('#place-title').textContent = place.name;
+  document.querySelector('#place-title').textContent = place.displayName || place.name;
   document.querySelector('#place-rating').textContent = place.prototypeRating
-    ? `★ ${place.prototypeRating.toFixed(1)} · Prototype rating` : 'Prototype place information';
+    ? `★ ${place.prototypeRating.toFixed(1)} · Prototype rating` : place.accessSource ? 'Outdoor access information · Venue FAQ' : 'Prototype place information';
   document.querySelector('#place-description').textContent = place.shortDescription;
   document.querySelector('#dog-facts').innerHTML = place.dogInfo.slice(0, 3).map(fact => `<span>✓ ${fact}</span>`).join('');
   document.querySelector('#visit-duration').textContent = `Planned duration · ${state.stopDurations[id]} min`;

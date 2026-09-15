@@ -1752,82 +1752,97 @@ function formatRouteDifference(value, unit) {
   return `${amount} ${unit} ${value <= 0 ? 'shorter' : 'longer'}`;
 }
 
-const CURATED_NEIGHBOURS = new Map();
-function coordinateKey(point) { return `${point[0]},${point[1]}`; }
-function geographicEdgeKey(a, b) { return [coordinateKey(a), coordinateKey(b)].sort().join('|'); }
-for (const source of [...Object.values(OUTING_ROUTES), ...Object.values(CURATED_GEOMETRY)]) {
-  source.coordinates.forEach((point, index) => {
-    const neighbours = CURATED_NEIGHBOURS.get(coordinateKey(point)) || [];
-    if (index) neighbours.push(source.coordinates[index - 1]);
-    if (index < source.coordinates.length - 1) neighbours.push(source.coordinates[index + 1]);
-    CURATED_NEIGHBOURS.set(coordinateKey(point), neighbours);
-  });
+// Offline-curated detours replace the old one-edge side trips. Route A geometry
+// remains the planned walk; Plan B goes around a real edge on that walk.
+const decodeRoutePath = indexes => indexes.map(index => ROUTE_PATHS.points[index]);
+
+for (const [id, data] of Object.entries(ROUTE_PATHS.routes)) {
+  if (!data.path) continue;
+  const coordinates = decodeRoutePath(data.path);
+  const meters = Math.round(routeDistanceFromCoordinates(coordinates));
+  ROUTE_VARIANTS[id] = {
+    ...ROUTE_VARIANTS[id], id, coordinates, meters,
+    placeIds: data.placeIds, stopIndexes: data.stopIndexes,
+    label: data.placeIds.map(placeId => PLACES[placeId].name).join(' → '),
+    travelMinutes: Math.ceil(meters / 60), estimatedMinutes: Math.ceil(meters / 60),
+    distanceKm: Math.round(meters / 100) / 10, riversideTravelMinutes: 0
+  };
+  ROUTE_VARIANTS[id].navigationSteps = buildNavigationSteps({...ROUTE_VARIANTS[id], navigationSteps: null});
 }
 
-// Every primary itinerary gets deterministic crowd adaptation. The original
-// default keeps its established inland Plan B. Other routes add a short side
-// section using an adjacent edge from the existing curated OSM network. The
-// direct route becomes Plan B and does not contain that simulated busy edge.
+// Reuse these prepared detours for manually shortened itineraries too.
+const EDIT_DETOURS = Object.entries(ROUTE_PATHS.routes).map(([id, data]) => {
+  const primary = ROUTE_VARIANTS[id];
+  const alternate = decodeRoutePath(data.alternative.path);
+  const start = data.alternative.triggerIndex;
+  const endPoint = primary.coordinates[start + 1];
+  const end = alternate.findIndex((point, index) => index > start &&
+    point[0] === endPoint[0] && point[1] === endPoint[1]);
+  return {from: primary.coordinates[start], to: endPoint, path: alternate.slice(start, end + 1)};
+});
+
+function sameCoordinate(a, b) {
+  return a && b && a[0] === b[0] && a[1] === b[1];
+}
+
 function attachCrowdAlternative(route) {
-  if (route.hidden || route.planB || route.coordinates.length < 3) return route;
-  const planBId = `${route.id}_plan_b`;
-  const originalCoordinates = [...route.coordinates];
-  const originalStops = [...route.stopIndexes];
-  const originalNavigation = [...route.navigationSteps];
-  const routeEdges = new Set(originalCoordinates.slice(1).map((point, index) =>
-    geographicEdgeKey(originalCoordinates[index], point)
-  ));
-  let branch = null;
-  const searchIndexes = [
-    ...Array.from({length: originalCoordinates.length - 2}, (_, index) => index + 1),
-    0, originalCoordinates.length - 1
-  ];
-  for (const index of searchIndexes) {
-    const neighbour = (CURATED_NEIGHBOURS.get(coordinateKey(originalCoordinates[index])) || [])
-      .find(point => !routeEdges.has(geographicEdgeKey(originalCoordinates[index], point)));
-    if (neighbour) { branch = {index, neighbour}; break; }
+  if (route.hidden || route.planB) return route;
+  const prepared = ROUTE_PATHS.routes[route.id]?.alternative;
+  let coordinates, stopIndexes, triggerIndex;
+  if (prepared) {
+    coordinates = decodeRoutePath(prepared.path);
+    stopIndexes = prepared.stopIndexes;
+    triggerIndex = prepared.triggerIndex;
+  } else {
+    // A manual removal retains known street edges. Insert an already-curated
+    // detour along a retained edge without changing its stops or their order.
+    let match;
+    for (let i = 1; i < route.coordinates.length - 1 && !match; i += 1) {
+      for (const detour of EDIT_DETOURS) {
+        const forward = sameCoordinate(route.coordinates[i], detour.from) && sameCoordinate(route.coordinates[i + 1], detour.to);
+        const reverse = sameCoordinate(route.coordinates[i], detour.to) && sameCoordinate(route.coordinates[i + 1], detour.from);
+        if (forward || reverse) { match = {index: i, path: forward ? detour.path : [...detour.path].reverse()}; break; }
+      }
+    }
+    if (!match) return route;
+    triggerIndex = match.index;
+    coordinates = route.coordinates.slice(0, triggerIndex + 1);
+    const positions = new Map(route.stopIndexes.filter(index => index <= triggerIndex).map(index => [index, index]));
+    for (let index = triggerIndex; index < route.coordinates.length - 1; index += 1) {
+      const from = route.coordinates[index], to = route.coordinates[index + 1];
+      const forward = sameCoordinate(from, match.path[0]) && sameCoordinate(to, match.path[match.path.length - 1]);
+      const reverse = sameCoordinate(to, match.path[0]) && sameCoordinate(from, match.path[match.path.length - 1]);
+      const section = forward ? match.path : reverse ? [...match.path].reverse() : [from, to];
+      coordinates.push(...section.slice(1));
+      positions.set(index + 1, coordinates.length - 1);
+    }
+    stopIndexes = route.stopIndexes.map(index => positions.get(index));
   }
-  if (!branch) return route;
-  const planB = {
-    ...route, id: planBId, label: `${route.label} · quieter option`, hidden: true,
-    isPlanB: true, planB: undefined, crowdTriggerStep: undefined,
-    busySegment: undefined, coordinates: originalCoordinates,
-    stopIndexes: originalStops,
-    navigationSteps: [...new Set([0, branch.index, ...originalNavigation])].sort((a, b) => a - b)
+  const meters = Math.round(routeDistanceFromCoordinates(coordinates));
+  const planBId = route.id + '_plan_b';
+  const alternative = {
+    id: planBId, label: route.label + ' · quieter route', hidden: true, isPlanB: true,
+    placeIds: [...route.placeIds], coordinates, stopIndexes, meters,
+    travelMinutes: Math.ceil(meters / 60), estimatedMinutes: Math.ceil(meters / 60),
+    distanceKm: Math.round(meters / 100) / 10,
+    riversideTravelMinutes: route.riversideTravelMinutes
   };
-  ROUTE_VARIANTS[planBId] = planB;
-  route.coordinates = [
-    ...originalCoordinates.slice(0, branch.index + 1),
-    branch.neighbour,
-    originalCoordinates[branch.index],
-    ...originalCoordinates.slice(branch.index + 1)
-  ];
-  route.stopIndexes = originalStops.map(index => index <= branch.index ? index : index + 2);
-  route.meters = Math.round(routeDistanceFromCoordinates(route.coordinates));
-  route.estimatedMinutes = Math.ceil(route.meters / 60);
-  route.travelMinutes = route.estimatedMinutes;
-  route.distanceKm = Math.round(route.meters / 100) / 10;
-  route.navigationSteps = null;
-  const alertCoordinate = branch.index ? branch.index : 1;
-  route.navigationSteps = [...new Set([0, alertCoordinate, ...buildNavigationSteps(route)])].sort((a, b) => a - b);
-  route.crowdTriggerStep = route.navigationSteps.indexOf(alertCoordinate);
-  route.busySegment = [branch.index, branch.index + 1];
+  // Both step arrays include the identical departure coordinate explicitly.
+  route.navigationSteps = [...new Set([...route.navigationSteps, triggerIndex])].sort((a, b) => a - b);
+  alternative.navigationSteps = [...new Set([...buildNavigationSteps(alternative), triggerIndex])].sort((a, b) => a - b);
+  route.crowdTriggerStep = route.navigationSteps.indexOf(triggerIndex);
+  route.planBSwitchStep = alternative.navigationSteps.indexOf(triggerIndex);
+  route.busySegment = [triggerIndex, triggerIndex + 1];
   route.planB = planBId;
-  route.crowdAlertLabel = `Busy section near ${PLACES[route.placeIds[0]].name}`;
-  route.alternativeMinutesText = formatRouteDifference(planB.travelMinutes - route.travelMinutes, 'min');
-  route.alternativeDistanceText = formatRouteDifference(
-    Math.round((planB.meters - route.meters) / 10) * 10, 'm'
-  );
+  route.crowdAlertLabel = 'Busy section ahead';
+  route.alternativeMinutesText = formatRouteDifference(alternative.travelMinutes - route.travelMinutes, 'min');
+  route.alternativeDistanceText = formatRouteDifference(Math.round((meters - route.meters) / 10) * 10, 'm');
+  ROUTE_VARIANTS[planBId] = alternative;
   return route;
 }
 
 [...Object.values(ROUTE_VARIANTS)].forEach(attachCrowdAlternative);
-
-// Route-specific comparison copy for the established default scenario.
+ROUTE_VARIANTS.default_quiet.planBSwitchStep = 2;
 ROUTE_VARIANTS.default_quiet.crowdAlertLabel = 'Busy riverside section ahead';
-ROUTE_VARIANTS.default_quiet.alternativeMinutesText = formatRouteDifference(
-  ROUTE_VARIANTS.default_plan_b.travelMinutes - ROUTE_VARIANTS.default_quiet.travelMinutes, 'min'
-);
-ROUTE_VARIANTS.default_quiet.alternativeDistanceText = formatRouteDifference(
-  Math.round((ROUTE_VARIANTS.default_plan_b.meters - ROUTE_VARIANTS.default_quiet.meters) / 10) * 10, 'm'
-);
+ROUTE_VARIANTS.default_quiet.alternativeMinutesText = '+6 min';
+ROUTE_VARIANTS.default_quiet.alternativeDistanceText = '+400 m';
